@@ -47,5 +47,32 @@ describe('Bbox', function () {
 		box4.intersects(box1).should.equal(true);
 		box5.intersects(box1).should.equal(true);
 	});
+
+	it('Computes point containment.', function () {
+		var box1 = Bbox.create(0,0,0, 1,1,1);
+
+		var centerpt = Vec3.create(0.5, 0.5, 0.5);
+		box1.contains(centerpt).should.equal(true);
+
+		box1.contains(box1.min).should.equal(false);
+		box1.contains(box1.max).should.equal(false);
+
+		var farpt = Vec3.create(10, 0, 0);
+		box1.contains(farpt).should.equal(false);
+
+		var corner = Vec3.create(0.99999, 0.001, 0.001);
+		box1.contains(corner).should.equal(true);
+	});
+
+	it('Should shatter', function () {
+		var box1 = Bbox.create(0,0,0, 1,1,1);
+		var pt = Vec3.create(0.5, 0.5, 0.5);
+
+		box1.shatter(pt).length.should.equal(8);
+
+		pt = Vec3.create(0.5, 0.1, 0.1);
+		box1.shatter(pt).length.should.equal(8);
+
+	});
 });
 

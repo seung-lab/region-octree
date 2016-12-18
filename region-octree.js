@@ -6,10 +6,16 @@ var Vec3 = (function () {
         this.y = y;
         this.z = z;
     }
+    Vec3.create = function (x, y, z) {
+        return new Vec3(x, y, z);
+    };
     Vec3.equals = function (a, b) {
         return (Math.abs(a.x - b.x) < EPSILON
             && Math.abs(a.y - b.y) < EPSILON
             && Math.abs(a.z - b.z) < EPSILON);
+    };
+    Vec3.prototype.clone = function () {
+        return new Vec3(this.x, this.y, this.z);
     };
     Vec3.prototype.equals = function (vec) {
         return Vec3.equals(this, vec);
@@ -21,15 +27,51 @@ var Vec3 = (function () {
 }());
 exports.Vec3 = Vec3;
 var Bbox = (function () {
-    function Bbox(min, max) {
-        this.min = new Vec3(Math.min(min.x, max.x), Math.min(min.y, max.y), Math.min(min.z, max.z));
-        this.max = new Vec3(Math.max(min.x, max.x), Math.max(min.y, max.y), Math.max(min.z, max.z));
+    function Bbox(a, b) {
+        this.min = new Vec3(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.min(a.z, b.z));
+        this.max = new Vec3(Math.max(a.x, b.x), Math.max(a.y, b.y), Math.max(a.z, b.z));
     }
     Bbox.create = function (a, b, c, x, y, z) {
         return new Bbox((new Vec3(a, b, c)), (new Vec3(x, y, z)));
     };
     Bbox.equals = function (a, b) {
         return a.min.equals(b.min) && a.max.equals(b.max);
+    };
+    Bbox.prototype.clone = function () {
+        return new Bbox(this.min.clone(), this.max.clone());
+    };
+    // Shatter a bbox into up to 8 octants 
+    Bbox.prototype.shatter = function (chissel) {
+        var glassbox = this;
+        if (!glassbox.contains(chissel)) {
+            return [glassbox];
+        }
+        var splitx = glassbox.split('x', chissel.x);
+        var splity = splitx.map(function (box) { return box.split('y', chissel.y); });
+        var splity2 = [].concat.apply([], splity);
+        var splitz = splity2.map(function (box) { return box.split('z', chissel.z); });
+        return [].concat.apply([], splitz);
+    };
+    Bbox.prototype.split = function (axis, value) {
+        var original = this;
+        if (original.min[axis] > value || original.max[axis] < value) {
+            return [original];
+        }
+        var left = original.clone(), right = original.clone();
+        left.max[axis] = value;
+        right.min[axis] = value;
+        return [left, right];
+    };
+    Bbox.prototype.equals = function (box) {
+        return Bbox.equals(this, box);
+    };
+    Bbox.prototype.contains = function (point) {
+        return (point.x > this.min.x
+            && point.y > this.min.y
+            && point.z > this.min.z
+            && point.x < this.max.x
+            && point.y < this.max.y
+            && point.z < this.max.z);
     };
     // test for intersection
     Bbox.prototype.intersects = function (box) {
@@ -53,13 +95,32 @@ var Bbox = (function () {
     return Bbox;
 }());
 exports.Bbox = Bbox;
-var RegionOctree = (function () {
-    function RegionOctree(width, height, depth) {
+var Octree = (function () {
+    function Octree(width, height, depth) {
+        this.dimension = Vec3.create(width, height, depth);
+        // this.root = ;
     }
-    return RegionOctree;
+    Octree.prototype.paint = function (box, label) {
+    };
+    Octree.prototype.erase = function (box) {
+    };
+    Octree.prototype.look = function (x, y, z) {
+        return 1;
+    };
+    return Octree;
 }());
 var OctreeNode = (function () {
-    function OctreeNode() {
+    function OctreeNode(bbox) {
+        this.bbox = bbox;
+        this.children = new Array(8);
     }
+    OctreeNode.prototype.look = function (x, y, z) {
+        var minpt = this.bbox.min;
+        // compute child index with no if statements
+        var index = (+((minpt.x - x) < 0)
+            | (+((minpt.y - y) < 0) << 1)
+            | (+((minpt.z - z) < 0) << 2));
+        return 1;
+    };
     return OctreeNode;
 }());

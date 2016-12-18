@@ -24,6 +24,10 @@ export class Vec3 {
 		);
 	}
 
+	clone () : Vec3 {
+		return new Vec3(this.x, this.y, this.z);
+	}
+
 	equals (vec: Vec3) : boolean {
 		return Vec3.equals(this, vec);
 	}
@@ -61,8 +65,60 @@ export class Bbox {
 		return a.min.equals(b.min) && a.max.equals(b.max);
 	}
 
-	equals (box: bbox) : boolean {
+	clone () : Bbox {
+		return new Bbox(
+			this.min.clone(),
+			this.max.clone()
+		);
+	}
+
+	// Shatter a bbox into up to 8 octants 
+	shatter (chissel: Vec3) : Bbox[] {
+		let glassbox = this;
+
+		if (!glassbox.contains(chissel)) {
+			return [ glassbox ];
+		}
+
+		let splitx = glassbox.split('x', chissel.x);
+		
+		let splity = splitx.map( (box) => box.split('y', chissel.y) );
+		let splity2 = [].concat.apply([], splity);
+
+		let splitz = splity2.map( (box) => box.split('z', chissel.z) );
+
+		return [].concat.apply([], splitz); 
+	}
+
+	split (axis: string, value: number) : Bbox[] {
+		let original = this;
+
+		if (original.min[axis] > value || original.max[axis] < value) {
+			return [ original ];
+		}
+
+		let left = original.clone(),
+			right = original.clone();
+
+		left.max[axis] = value;
+		right.min[axis] = value;
+
+		return [ left, right ];
+	}
+
+	equals (box: Bbox) : boolean {
 		return Bbox.equals(this, box);
+	}
+
+	contains (point: Vec3) : boolean {
+		return (
+			   point.x > this.min.x 
+			&& point.y > this.min.y
+			&& point.z > this.min.z 
+			&& point.x < this.max.x 
+			&& point.y < this.max.y
+			&& point.z < this.max.z 
+		);
 	}
 
 	// test for intersection
@@ -123,6 +179,7 @@ class Octree {
 class OctreeNode {
 	label: number;
 	bbox: Bbox;
+	isleaf: boolean;
 	children: OctreeNode[];
 
 	constructor(bbox: Bbox) {
@@ -142,7 +199,4 @@ class OctreeNode {
 
 		return 1;
 	}
-
 }
-
-
