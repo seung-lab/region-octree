@@ -80,14 +80,36 @@ export class Bbox {
 			return [ glassbox ];
 		}
 
-		let splitx = glassbox.split('x', chissel.x);
-		
-		let splity = splitx.map( (box) => box.split('y', chissel.y) );
-		let splity2 = [].concat.apply([], splity);
+		function create (pt1, pt2) : Bbox {
+			return new Bbox(pt1.clone(), pt2.clone());
+		}
 
-		let splitz = splity2.map( (box) => box.split('z', chissel.z) );
+		let center = glassbox.center();
 
-		return [].concat.apply([], splitz); 
+		/* Draw a 3D cube in isometric view, label axes as x going to the right, y to the left.
+		 * Divide it into octants numbered as follows:
+		 *
+		 *  z=0  | 2 | 3 |  y    z=1  | 6 | 7 | y
+		 *       | 0 | 1 |            | 4 | 5 |
+		 *         x                    x
+		 *
+		 * This allows you to index each octant using bitfields, x as LSB, z as MSB.
+		 */
+
+		return [
+			// z = 0
+			create(glassbox.min, center), // bottom left
+			Bbox.create(center.x, glassbox.min.y, glassbox.min.z,  glassbox.max.x, center.y, center.z), // bottom right
+			Bbox.create(glassbox.min.x, center.y, glassbox.min.z,  center.x, glassbox.max.y, center.z), // top left
+			Bbox.create(center.x, center.y, glassbox.min.z,  glassbox.max.x, glassbox.max.y, center.z), // top right
+
+			// z = 1
+			
+			Bbox.create(glassbox.min.x, glassbox.min.y, center.z,  center.x, center.y, glassbox.max.z), // bottom left
+			Bbox.create(center.x, glassbox.min.y, center.z,  glassbox.max.x, center.y, glassbox.max.z), // bottom right
+			Bbox.create(glassbox.min.x, center.y, center.z,  center.x, glassbox.max.y, glassbox.max.z), // top left
+			create(center, glassbox.max) // top right
+		];
 	}
 
 	split (axis: string, value: number) : Bbox[] {

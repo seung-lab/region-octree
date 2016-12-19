@@ -68,10 +68,23 @@ describe('Bbox', function () {
 		var box1 = Bbox.create(0,0,0, 1,1,1);
 		var pt = Vec3.create(0.5, 0.5, 0.5);
 
-		box1.shatter(pt).length.should.equal(8);
+		var shatter = box1.shatter(pt);
+		shatter.length.should.equal(8);
+
+		Bbox.equals(shatter[0], Bbox.create(0,0,0, 0.5,0.5,0.5)).should.equal(true);
+		Bbox.equals(shatter[1], Bbox.create(0.5,0,0, 1,0.5,0.5)).should.equal(true);
+		Bbox.equals(shatter[2], Bbox.create(0,0.5,0, 0.5,1,0.5)).should.equal(true);
+		Bbox.equals(shatter[3], Bbox.create(0.5,0.5,0, 1,1,0.5)).should.equal(true);
+		Bbox.equals(shatter[4], Bbox.create(0,0,0.5, 0.5,0.5,1)).should.equal(true);
+		Bbox.equals(shatter[5], Bbox.create(0.5,0,0.5, 1,0.5,1)).should.equal(true);
+		Bbox.equals(shatter[6], Bbox.create(0,0.5,0.5, 0.5,1,1)).should.equal(true);
+		Bbox.equals(shatter[7], Bbox.create(0.5,0.5,0.5, 1,1,1)).should.equal(true);
 
 		pt = Vec3.create(0.5, 0.1, 0.1);
 		box1.shatter(pt).length.should.equal(8);
+
+		pt = Vec3.create(0.5, 0, 0);
+		box1.shatter(pt).length.should.equal(1);
 
 	});
 });
