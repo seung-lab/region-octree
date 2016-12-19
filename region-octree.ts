@@ -92,11 +92,11 @@ export class Bbox {
 	}
 
 	static equals (a: Bbox, b: Bbox) : boolean {
-		return a.min.equals(b.min) && a.max.equals(b.max);
+		return a.equals(b);	
 	}
 
 	equals (box: Bbox) : boolean {
-		return Bbox.equals(this, box);
+		return this.min.equals(box.min) && this.max.equals(box.max);
 	}
 
 	clone () : Bbox {
@@ -127,7 +127,7 @@ export class Bbox {
 		 *       | 0 | 1 |            | 4 | 5 |
 		 *         x                    x
 		 *
-		 * This allows you to index each octant using bitfields, x as LSB, z as MSB.
+		 * This allows you to index each octant using bitfields, x as LSB, z as MSB. c.f. Bbox.octant
 		 */
 
 		return [
@@ -220,25 +220,24 @@ export class Bbox {
 	}
 }
 
-class OctreeNode {
+export class Octree {
 	label: number;
 	bbox: Bbox;
-	children: OctreeNode[];
+	children: Octree[];
 
 	constructor(bbox: Bbox) {
-		this.bbox = bbox;
-		this.children = new Array(8);
+		this.bbox = bbox.clone();
+		this.children = null;
 		this.label = null;
 	}
 
-	resetChildren () : void {
-		for (let i = this.children.length - 1; i >= 0; i--) {
-			this.children[i] = null;
-		}
-	}
-
+	// get number of nodes in the current subtree
 	treesize () : number {
 		let size = 1;
+
+		if (!this.children) {
+			return size;
+		}
 
 		this.children.forEach(function (node) {
 			if (node) {
@@ -249,15 +248,18 @@ class OctreeNode {
 		return size;
 	}
 
-	static treedepth (node: OctreeNode, depth = 1) : number {
-		if (node.label === null) {
+	// find max depth of the current subtee
+	treedepth (depth = 1) : number {
+		let node = this;
+
+		if (this.children === null) {
 			return depth;
 		}
 
 		let curdepth = depth;
 
 		node.children.forEach(function (node) {
-			curdepth = Math.max(curdepth, OctreeNode.treedepth(node, depth + 1));
+			curdepth = Math.max(curdepth, node.treedepth(depth + 1));
 		});
 
 		return curdepth;
@@ -269,7 +271,7 @@ class OctreeNode {
 	// if a child doesn't exist, create one
 	paint (paintbox: Bbox, label: number) : void {
 		if (paintbox.equals(this.bbox)) {
-			this.resetChildren();
+			this.children = null;
 			this.label = label;
 			return;
 		}
@@ -280,13 +282,14 @@ class OctreeNode {
 
 		let center = this.bbox.center();
 
-		if (this.label !== null) {
-			this.children = this.bbox.shatter(center).map( (box) => new OctreeNode(box) );
+		if (this.children === null) {
+			this.children = this.bbox.shatter(center).map( (box) => new Octree(box) );
 		}
 
 		this.label = null;
 		let shatter = paintbox.shatter( center );
 
+		// This happens when the painting box is entirely contained in this box
 		if (shatter.length === 1) {
 			let octant = this.bbox.octant(paintbox.center());
 
@@ -305,6 +308,32 @@ class OctreeNode {
 			let child = this.children[i];
 			child.paint(box, label);
 		}
+
+		// merge children when they all agree to prevent sprawl
+		if (this.areAllChildrenSame()) {
+			this.children = null;
+			this.label = label;
+		}
+	}
+
+	areAllChildrenSame () : boolean {
+		let all_same = true;
+		let first_label = this.children[0].label;
+
+		if (first_label === null) {
+			return false;
+		}
+
+		for (let i = 0; i < 8; i++) {
+			let child = this.children[i];
+			all_same = all_same && (first_label === child.label);
+			
+			if (!all_same) {
+				break;
+			}
+		}
+
+		return all_same;
 	}
 
 	look (x: number, y: number, z: number) : number {
@@ -319,5 +348,12 @@ class OctreeNode {
 		}
 
 		return this.children[octant].look(x,y,z);
+	}
+
+	toString () : string {
+		let isleaf = this.children 
+			? ""
+			: ", leaf";
+		return `Octree(${this.label}, ${this.bbox}${isleaf})`;
 	}
 }

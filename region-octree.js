@@ -53,10 +53,10 @@ var Bbox = (function () {
             | (+((center.z - point.z) < 0) << 2));
     };
     Bbox.equals = function (a, b) {
-        return a.min.equals(b.min) && a.max.equals(b.max);
+        return a.equals(b);
     };
     Bbox.prototype.equals = function (box) {
-        return Bbox.equals(this, box);
+        return this.min.equals(box.min) && this.max.equals(box.max);
     };
     Bbox.prototype.clone = function () {
         return new Bbox(this.min.clone(), this.max.clone());
@@ -78,7 +78,7 @@ var Bbox = (function () {
          *       | 0 | 1 |            | 4 | 5 |
          *         x                    x
          *
-         * This allows you to index each octant using bitfields, x as LSB, z as MSB.
+         * This allows you to index each octant using bitfields, x as LSB, z as MSB. c.f. Bbox.octant
          */
         return [
             // z = 0
@@ -141,35 +141,17 @@ var Bbox = (function () {
 }());
 exports.Bbox = Bbox;
 var Octree = (function () {
-    function Octree(width, height, depth) {
-        this.root = new OctreeNode(Bbox.create(0, 0, 0, width, height, depth));
-    }
-    Octree.prototype.paint = function (box, label) {
-        // Do the bboxes match? If yes, then delete all children
-        // and set the label. 
-        // Else, shatter box and paint each assigned subvolume
-        // if a child doesn't exist, create one
-    };
-    Octree.prototype.erase = function (box) {
-    };
-    Octree.prototype.look = function (x, y, z) {
-        return 1;
-    };
-    return Octree;
-}());
-var OctreeNode = (function () {
-    function OctreeNode(bbox) {
-        this.bbox = bbox;
-        this.children = new Array(8);
+    function Octree(bbox) {
+        this.bbox = bbox.clone();
+        this.children = null;
         this.label = null;
     }
-    OctreeNode.prototype.resetChildren = function () {
-        for (var i = this.children.length - 1; i >= 0; i--) {
-            this.children[i] = null;
-        }
-    };
-    OctreeNode.prototype.treesize = function () {
+    // get number of nodes in the current subtree
+    Octree.prototype.treesize = function () {
         var size = 1;
+        if (!this.children) {
+            return size;
+        }
         this.children.forEach(function (node) {
             if (node) {
                 size += node.treesize();
@@ -177,20 +159,26 @@ var OctreeNode = (function () {
         });
         return size;
     };
-    OctreeNode.treedepth = function (node, depth) {
+    // find max depth of the current subtee
+    Octree.prototype.treedepth = function (depth) {
         if (depth === void 0) { depth = 1; }
-        if (node.label === null) {
+        var node = this;
+        if (this.children === null) {
             return depth;
         }
         var curdepth = depth;
         node.children.forEach(function (node) {
-            curdepth = Math.max(curdepth, OctreeNode.treedepth(node, depth + 1));
+            curdepth = Math.max(curdepth, node.treedepth(depth + 1));
         });
         return curdepth;
     };
-    OctreeNode.prototype.paint = function (paintbox, label) {
+    // Do the bboxes match? If yes, then delete all children
+    // and set the label. 
+    // Else, shatter box and paint each assigned subvolume
+    // if a child doesn't exist, create one
+    Octree.prototype.paint = function (paintbox, label) {
         if (paintbox.equals(this.bbox)) {
-            this.resetChildren();
+            this.children = null;
             this.label = label;
             return;
         }
@@ -199,11 +187,12 @@ var OctreeNode = (function () {
             return;
         }
         var center = this.bbox.center();
-        if (this.label !== null) {
-            this.children = this.bbox.shatter(center).map(function (box) { return new OctreeNode(box); });
+        if (this.children === null) {
+            this.children = this.bbox.shatter(center).map(function (box) { return new Octree(box); });
         }
         this.label = null;
         var shatter = paintbox.shatter(center);
+        // This happens when the painting box is entirely contained in this box
         if (shatter.length === 1) {
             var octant = this.bbox.octant(paintbox.center());
             if (octant < 0) {
@@ -219,14 +208,43 @@ var OctreeNode = (function () {
             var child = this.children[i];
             child.paint(box, label);
         }
+        // merge children when they all agree to prevent sprawl
+        if (this.areAllChildrenSame()) {
+            this.children = null;
+            this.label = label;
+        }
     };
-    OctreeNode.prototype.look = function (x, y, z) {
-        var minpt = this.bbox.min;
-        // compute child index with no if statements
-        var index = (+((minpt.x - x) < 0)
-            | (+((minpt.y - y) < 0) << 1)
-            | (+((minpt.z - z) < 0) << 2));
-        return 1;
+    Octree.prototype.areAllChildrenSame = function () {
+        var all_same = true;
+        var first_label = this.children[0].label;
+        if (first_label === null) {
+            return false;
+        }
+        for (var i = 0; i < 8; i++) {
+            var child = this.children[i];
+            all_same = all_same && (first_label === child.label);
+            if (!all_same) {
+                break;
+            }
+        }
+        return all_same;
     };
-    return OctreeNode;
+    Octree.prototype.look = function (x, y, z) {
+        if (this.label !== null) {
+            return this.label;
+        }
+        var octant = this.bbox.octant(Vec3.create(x, y, z));
+        if (octant < 0) {
+            throw new Error("${octant} was not a good value.");
+        }
+        return this.children[octant].look(x, y, z);
+    };
+    Octree.prototype.toString = function () {
+        var isleaf = this.children
+            ? ""
+            : ", leaf";
+        return "Octree(" + this.label + ", " + this.bbox + isleaf + ")";
+    };
+    return Octree;
 }());
+exports.Octree = Octree;

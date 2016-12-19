@@ -3,6 +3,7 @@ var regionOctree = require('../region-octree.js');
 
 var Bbox = regionOctree.Bbox;
 var Vec3 = regionOctree.Vec3;
+var Octree = regionOctree.Octree;
 
 describe('Bbox', function () {
 	it('Should correctly return a centerpoint.', function () {
@@ -101,6 +102,110 @@ describe('Bbox', function () {
 		box.octant( Vec3.create(51, 51, 51) ).should.equal(7);
 
 		box.octant( Vec3.create(50, 50, 50) ).should.equal(-2);
+	});
+});
+
+describe('Octree', function () {
+	var box1 = Bbox.create(0,0,0, 1,1,1);
+	var box2 = Bbox.create(0,0,0, 2,2,2);
+
+	it('Treesize Computed Correctly', function () {
+		var root = new Octree(box2);
+
+		root.treesize().should.equal(1);
+
+		root.children = new Array(8);
+		root.children[0] = new Octree(box1);
+		root.children[4] = new Octree(Bbox.create(0,0,1, 1,1,2));
+
+		root.treesize().should.equal(3);
+	});
+
+	it('Treedepth Computed Correctly', function () {
+		var root = new Octree(box2);
+
+		root.treedepth().should.equal(1);
+
+		root.children = new Array(8);
+		root.children[0] = new Octree(box1);
+		root.children[4] = new Octree(Bbox.create(0,0,1, 1,1,2));
+
+		root.treedepth().should.equal(2);
+
+		root.children[0].children = new Array(8);
+		root.children[0].children[0] = new Octree(Bbox.create(0,0,0.5, 0.5,0.5,1));
+
+		root.treedepth().should.equal(3);
+	});
+
+	it('Can paint a 1 voxel tree.', function () {
+		var root = new Octree( box1 );
+		root.paint(box1, 666);
+
+		root.treesize().should.equal(1);
+		
+		root.label.should.equal(666);
+	});
+
+	it('Can paint an octant of a 2x2x2 volume.', function () {
+		var root = new Octree( box2 );
+		root.paint(box1, 666);
+
+		root.treesize().should.equal(1 + 8);
+		
+		root.children[0].label.should.equal(666);
+		should(root.children[0].children).be.null;
+
+		for (var i = 1; i < 8; i++) {
+			should(root.children[i].label).be.null;
+			should(root.children[i].children).be.null;
+		}
+	});
+
+	it('Can paint a pixel of a 4x4x4 volume.', function () {
+		var root = new Octree( Bbox.create(0,0,0, 4,4,4) );
+		root.paint(box1, 666);
+
+		root.treesize().should.equal(1 + 8 + 8);
+		root.treedepth().should.equal(3);
+		
+		for (var i = 1; i < 8; i++) {
+			should(root.children[i].label).be.null;
+			should(root.children[i].children).be.null;
+		}
+
+		root.children[0].children[0].label.should.equal(666);
+
+		for (var i = 0; i < 8; i++) {
+			should(root.children[0].children[i].children).be.null;
+		}
+	});
+
+	it('Can paint center volume of a 4x4x4 volume.', function () {
+		var root = new Octree( Bbox.create(0,0,0, 4,4,4) );
+		root.paint(Bbox.create(1,1,1, 2,2,2), 666);
+
+		root.treesize().should.equal(1 + 8 + 8);
+		root.treedepth().should.equal(3);
+
+		root.children[0].children[7].label.should.equal(666);
+
+		root.paint(Bbox.create(1,1,1, 3,3,3), 666);
+
+		root.treesize().should.equal(1 + 8 + 8 * 8);
+		root.treedepth().should.equal(3);
+
+		root.children[0].children[7].label.should.equal(666);
+		root.children[1].children[6].label.should.equal(666);
+		root.children[2].children[5].label.should.equal(666);
+		root.children[3].children[4].label.should.equal(666);
+		root.children[4].children[3].label.should.equal(666);
+		root.children[5].children[2].label.should.equal(666);
+		root.children[6].children[1].label.should.equal(666);
+		root.children[7].children[0].label.should.equal(666);
+
+		// pick a random uncolored cube
+		should(root.children[7].children[2].label).be.null;
 	});
 });
 
