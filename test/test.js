@@ -207,5 +207,17 @@ describe('Octree', function () {
 		// pick a random uncolored cube
 		should(root.children[7].children[2].label).be.null;
 	});
+
+	// it('Can paint center volume of a larger volume.', function () {
+	// 	var size = 8;
+
+	// 	var root = new Octree( Bbox.cube(size) );
+	// 	root.paint(Bbox.create(2,2,2, 3,3,5), 666);
+
+	// 	root.print();
+
+	// 	console.log(root.treedepth());
+	// 	console.log(root.treesize());
+	// });
 });
 

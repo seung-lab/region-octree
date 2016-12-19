@@ -34,6 +34,9 @@ var Bbox = (function () {
     Bbox.create = function (a, b, c, x, y, z) {
         return new Bbox((new Vec3(a, b, c)), (new Vec3(x, y, z)));
     };
+    Bbox.cube = function (side) {
+        return Bbox.create(0, 0, 0, side, side, side);
+    };
     Bbox.prototype.octant = function (point) {
         var container = this;
         if (!container.contains(point)) {
@@ -146,6 +149,14 @@ var Octree = (function () {
         this.children = null;
         this.label = null;
     }
+    Octree.prototype.print = function () {
+        console.log(this.toString());
+        if (this.children) {
+            this.children.forEach(function (node) {
+                node.print();
+            });
+        }
+    };
     // get number of nodes in the current subtree
     Octree.prototype.treesize = function () {
         var size = 1;
@@ -182,8 +193,14 @@ var Octree = (function () {
             this.label = label;
             return;
         }
-        else if (paintbox.volume() < 1) {
-            console.warn("Not supporting painting voxels less than size 1.");
+        else if (this.bbox.volume() <= 1) {
+            if (paintbox.volume() >= 0.5) {
+                this.label = label;
+                this.children = null;
+            }
+            return;
+        }
+        else if (paintbox.volume() < 0.5) {
             return;
         }
         var center = this.bbox.center();
@@ -196,7 +213,7 @@ var Octree = (function () {
         if (shatter.length === 1) {
             var octant = this.bbox.octant(paintbox.center());
             if (octant < 0) {
-                console.warn("Octant " + octant + " was an error code for " + this.bbox);
+                console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
                 return;
             }
             var child = this.children[octant];

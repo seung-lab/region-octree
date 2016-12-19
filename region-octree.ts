@@ -61,6 +61,10 @@ export class Bbox {
 		);
 	}
 
+	static cube (side: number) : Bbox {
+		return Bbox.create(0,0,0, side,side,side);
+	}
+
 	octant (point: Vec3) : number {
 		let container = this;
 
@@ -231,6 +235,15 @@ export class Octree {
 		this.label = null;
 	}
 
+	print () : void {
+		console.log(this.toString());
+		if (this.children) {
+			this.children.forEach(function (node) {
+				node.print();
+			})
+		}
+	}
+
 	// get number of nodes in the current subtree
 	treesize () : number {
 		let size = 1;
@@ -275,8 +288,14 @@ export class Octree {
 			this.label = label;
 			return;
 		}
-		else if (paintbox.volume() < 1) {
-			console.warn("Not supporting painting voxels less than size 1.");
+		else if (this.bbox.volume() <= 1) {
+			if (paintbox.volume() >= 0.5) {
+				this.label = label;
+				this.children = null;
+			}
+			return;
+		}
+		else if (paintbox.volume() < 0.5) {
 			return;
 		}
 
@@ -294,7 +313,7 @@ export class Octree {
 			let octant = this.bbox.octant(paintbox.center());
 
 			if (octant < 0) {
-				console.warn(`Octant ${octant} was an error code for ${this.bbox}`);
+				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
 				return;
 			}
 
