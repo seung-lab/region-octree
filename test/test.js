@@ -85,7 +85,22 @@ describe('Bbox', function () {
 
 		pt = Vec3.create(0.5, 0, 0);
 		box1.shatter(pt).length.should.equal(1);
+	});
 
+	it('Compute octant', function () {
+		var box = Bbox.create(0,0,0, 100,100,100);
+
+		box.octant( Vec3.create(-1, 0, 0) ).should.equal(-1);
+		box.octant( Vec3.create(1, 1, 1) ).should.equal(0);
+		box.octant( Vec3.create(51, 1, 1) ).should.equal(1);
+		box.octant( Vec3.create(1, 51, 1) ).should.equal(2);
+		box.octant( Vec3.create(51, 51, 1) ).should.equal(3);
+		box.octant( Vec3.create(1, 1, 51) ).should.equal(4);
+		box.octant( Vec3.create(51, 1, 51) ).should.equal(5);
+		box.octant( Vec3.create(1, 51, 51) ).should.equal(6);
+		box.octant( Vec3.create(51, 51, 51) ).should.equal(7);
+
+		box.octant( Vec3.create(50, 50, 50) ).should.equal(-2);
 	});
 });
 

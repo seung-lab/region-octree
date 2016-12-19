@@ -61,8 +61,42 @@ export class Bbox {
 		);
 	}
 
+	octant (point: Vec3) : number {
+		let container = this;
+
+		if (!container.contains(point)) {
+			return -1;
+		}
+
+		let center = container.center();
+
+		let feq = (a,b) => Math.abs(a - b) < EPSILON;
+
+		let cx = feq(center.x, point.x), 
+			cy = feq(center.y, point.y), 
+			cz = feq(center.z, point.z);
+
+		// If point is located in between octants on the xy, xz, or yz planes.
+		if ((cx && cy)
+			|| (cx && cz)
+			|| (cy && cz)) {
+			
+			return -2;
+		}
+
+		return (
+			  +((center.x - point.x) < 0)
+			| (+((center.y - point.y) < 0) << 1)
+			| (+((center.z - point.z) < 0) << 2)
+		);
+	}
+
 	static equals (a: Bbox, b: Bbox) : boolean {
 		return a.min.equals(b.min) && a.max.equals(b.max);
+	}
+
+	equals (box: Bbox) : boolean {
+		return Bbox.equals(this, box);
 	}
 
 	clone () : Bbox {
@@ -128,10 +162,6 @@ export class Bbox {
 		return [ left, right ];
 	}
 
-	equals (box: Bbox) : boolean {
-		return Bbox.equals(this, box);
-	}
-
 	contains (point: Vec3) : boolean {
 		return (
 			   point.x > this.min.x 
@@ -172,53 +202,122 @@ export class Bbox {
 		);
 	}
 
+	size3 () : Vec3 {
+		return new Vec3(
+			(this.max.x - this.min.x),
+			(this.max.y - this.min.y),
+			(this.max.z - this.min.z)
+		);
+	}
+
+	volume () : number {
+		let size = this.size3();
+		return size.x * size.y * size.z;
+	}
+
 	toString () : string {
 		return `Bbox(${this.min}, ${this.max})`;
-	}
-}
-
-class Octree {
-	dimension: Vec3;
-	root: OctreeNode;
-	constructor(width, height, depth) {
-		this.dimension = Vec3.create(width, height, depth);
-		// this.root = ;
-	}
-
-	paint (box: Bbox, label: number) : void {
-
-	}
-
-	erase (box: Bbox) : void {
-
-	}
-
-	look (x: number, y: number, z: number) : number {
-		return 1;
 	}
 }
 
 class OctreeNode {
 	label: number;
 	bbox: Bbox;
-	isleaf: boolean;
 	children: OctreeNode[];
 
 	constructor(bbox: Bbox) {
 		this.bbox = bbox;
 		this.children = new Array(8);
+		this.label = null;
+	}
+
+	resetChildren () : void {
+		for (let i = this.children.length - 1; i >= 0; i--) {
+			this.children[i] = null;
+		}
+	}
+
+	treesize () : number {
+		let size = 1;
+
+		this.children.forEach(function (node) {
+			if (node) {
+				size += node.treesize();
+			}
+		});
+
+		return size;
+	}
+
+	static treedepth (node: OctreeNode, depth = 1) : number {
+		if (node.label === null) {
+			return depth;
+		}
+
+		let curdepth = depth;
+
+		node.children.forEach(function (node) {
+			curdepth = Math.max(curdepth, OctreeNode.treedepth(node, depth + 1));
+		});
+
+		return curdepth;
+	}
+
+	// Do the bboxes match? If yes, then delete all children
+	// and set the label. 
+	// Else, shatter box and paint each assigned subvolume
+	// if a child doesn't exist, create one
+	paint (paintbox: Bbox, label: number) : void {
+		if (paintbox.equals(this.bbox)) {
+			this.resetChildren();
+			this.label = label;
+			return;
+		}
+		else if (paintbox.volume() < 1) {
+			console.warn("Not supporting painting voxels less than size 1.");
+			return;
+		}
+
+		let center = this.bbox.center();
+
+		if (this.label !== null) {
+			this.children = this.bbox.shatter(center).map( (box) => new OctreeNode(box) );
+		}
+
+		this.label = null;
+		let shatter = paintbox.shatter( center );
+
+		if (shatter.length === 1) {
+			let octant = this.bbox.octant(paintbox.center());
+
+			if (octant < 0) {
+				console.warn(`Octant ${octant} was an error code for ${this.bbox}`);
+				return;
+			}
+
+			let child = this.children[octant];
+			child.paint(paintbox, label);
+			return;
+		}
+
+		for (let i = 0; i < 8; i++) {
+			let box = shatter[i];
+			let child = this.children[i];
+			child.paint(box, label);
+		}
 	}
 
 	look (x: number, y: number, z: number) : number {
-		let minpt = this.bbox.min;
+		if (this.label !== null) {
+			return this.label;
+		}
 
-		// compute child index with no if statements
-		let index = (
-			  +((minpt.x - x) < 0)
-			| (+((minpt.y - y) < 0) << 1)
-			| (+((minpt.z - z) < 0) << 2)
-		);
+		let octant = this.bbox.octant(Vec3.create(x,y,z));
 
-		return 1;
+		if (octant < 0) {
+			throw new Error("${octant} was not a good value.");
+		}
+
+		return this.children[octant].look(x,y,z);
 	}
 }

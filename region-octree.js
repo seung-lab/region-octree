@@ -34,8 +34,29 @@ var Bbox = (function () {
     Bbox.create = function (a, b, c, x, y, z) {
         return new Bbox((new Vec3(a, b, c)), (new Vec3(x, y, z)));
     };
+    Bbox.prototype.octant = function (point) {
+        var container = this;
+        if (!container.contains(point)) {
+            return -1;
+        }
+        var center = container.center();
+        var feq = function (a, b) { return Math.abs(a - b) < EPSILON; };
+        var cx = feq(center.x, point.x), cy = feq(center.y, point.y), cz = feq(center.z, point.z);
+        // If point is located in between octants on the xy, xz, or yz planes.
+        if ((cx && cy)
+            || (cx && cz)
+            || (cy && cz)) {
+            return -2;
+        }
+        return (+((center.x - point.x) < 0)
+            | (+((center.y - point.y) < 0) << 1)
+            | (+((center.z - point.z) < 0) << 2));
+    };
     Bbox.equals = function (a, b) {
         return a.min.equals(b.min) && a.max.equals(b.max);
+    };
+    Bbox.prototype.equals = function (box) {
+        return Bbox.equals(this, box);
     };
     Bbox.prototype.clone = function () {
         return new Bbox(this.min.clone(), this.max.clone());
@@ -82,9 +103,6 @@ var Bbox = (function () {
         right.min[axis] = value;
         return [left, right];
     };
-    Bbox.prototype.equals = function (box) {
-        return Bbox.equals(this, box);
-    };
     Bbox.prototype.contains = function (point) {
         return (point.x > this.min.x
             && point.y > this.min.y
@@ -109,6 +127,13 @@ var Bbox = (function () {
     Bbox.prototype.center = function () {
         return new Vec3((this.min.x + this.max.x) / 2, (this.min.y + this.max.y) / 2, (this.min.z + this.max.z) / 2);
     };
+    Bbox.prototype.size3 = function () {
+        return new Vec3((this.max.x - this.min.x), (this.max.y - this.min.y), (this.max.z - this.min.z));
+    };
+    Bbox.prototype.volume = function () {
+        var size = this.size3();
+        return size.x * size.y * size.z;
+    };
     Bbox.prototype.toString = function () {
         return "Bbox(" + this.min + ", " + this.max + ")";
     };
@@ -117,10 +142,13 @@ var Bbox = (function () {
 exports.Bbox = Bbox;
 var Octree = (function () {
     function Octree(width, height, depth) {
-        this.dimension = Vec3.create(width, height, depth);
-        // this.root = ;
+        this.root = new OctreeNode(Bbox.create(0, 0, 0, width, height, depth));
     }
     Octree.prototype.paint = function (box, label) {
+        // Do the bboxes match? If yes, then delete all children
+        // and set the label. 
+        // Else, shatter box and paint each assigned subvolume
+        // if a child doesn't exist, create one
     };
     Octree.prototype.erase = function (box) {
     };
@@ -133,7 +161,65 @@ var OctreeNode = (function () {
     function OctreeNode(bbox) {
         this.bbox = bbox;
         this.children = new Array(8);
+        this.label = null;
     }
+    OctreeNode.prototype.resetChildren = function () {
+        for (var i = this.children.length - 1; i >= 0; i--) {
+            this.children[i] = null;
+        }
+    };
+    OctreeNode.prototype.treesize = function () {
+        var size = 1;
+        this.children.forEach(function (node) {
+            if (node) {
+                size += node.treesize();
+            }
+        });
+        return size;
+    };
+    OctreeNode.treedepth = function (node, depth) {
+        if (depth === void 0) { depth = 1; }
+        if (node.label === null) {
+            return depth;
+        }
+        var curdepth = depth;
+        node.children.forEach(function (node) {
+            curdepth = Math.max(curdepth, OctreeNode.treedepth(node, depth + 1));
+        });
+        return curdepth;
+    };
+    OctreeNode.prototype.paint = function (paintbox, label) {
+        if (paintbox.equals(this.bbox)) {
+            this.resetChildren();
+            this.label = label;
+            return;
+        }
+        else if (paintbox.volume() < 1) {
+            console.warn("Not supporting painting voxels less than size 1.");
+            return;
+        }
+        var center = this.bbox.center();
+        if (this.label !== null) {
+            this.children = this.bbox.shatter(center).map(function (box) { return new OctreeNode(box); });
+        }
+        this.label = null;
+        var shatter = paintbox.shatter(center);
+        if (shatter.length === 1) {
+            var octant = this.bbox.octant(paintbox.center());
+            if (octant < 0) {
+                console.warn("Octant " + octant + " was an error code for " + this.bbox);
+                return;
+            }
+            var child = this.children[octant];
+            child.paint(paintbox, label);
+            return;
+        }
+        for (var i = 0; i < 8; i++) {
+            var box = shatter[i];
+            var child = this.children[i];
+            child.paint(box, label);
+        }
+    };
     OctreeNode.prototype.look = function (x, y, z) {
         var minpt = this.bbox.min;
         // compute child index with no if statements
