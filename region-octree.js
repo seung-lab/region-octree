@@ -1,5 +1,5 @@
 "use strict";
-var EPSILON = 1e-10;
+var EPSILON = 1e-14;
 var Vec3 = (function () {
     function Vec3(x, y, z) {
         this.x = x;
@@ -65,13 +65,13 @@ var Bbox = (function () {
         return new Bbox(this.min.clone(), this.max.clone());
     };
     // Shatter a bbox into up to 8 octants 
-    Bbox.prototype.shatter = function (chissel) {
+    Bbox.prototype.shatter8 = function (chissel) {
         var glassbox = this;
         if (!glassbox.contains(chissel)) {
             return [glassbox];
         }
         function create(pt1, pt2) {
-            return new Bbox(pt1.clone(), pt2.clone());
+            return new Bbox(pt1, pt2);
         }
         var center = glassbox.center();
         /* Draw a 3D cube in isometric view, label axes as x going to the right, y to the left.
@@ -96,11 +96,29 @@ var Bbox = (function () {
             create(center, glassbox.max) // top right
         ];
     };
+    // Shatter a bbox into up to 8 octants 
+    Bbox.prototype.shatter = function (chissel) {
+        var glassbox = this;
+        if (glassbox.contains(chissel)) {
+            // slightly more efficient and lays out indicies 
+            // in bitmappable fashion
+            return glassbox.shatter8(chissel);
+        }
+        else if (!glassbox.containsInclusive(chissel)) {
+            return [glassbox];
+        }
+        var splitx = glassbox.split('x', chissel.x);
+        var splity = splitx.map(function (box) { return box.split('y', chissel.y); });
+        var splity2 = [].concat.apply([], splity);
+        var splitz = splity2.map(function (box) { return box.split('z', chissel.z); });
+        return [].concat.apply([], splitz);
+    };
     Bbox.prototype.split = function (axis, value) {
         var original = this;
-        if (original.min[axis] > value || original.max[axis] < value) {
+        if (original.min[axis] >= (value - EPSILON) || original.max[axis] <= (value + EPSILON)) {
             return [original];
         }
+        // left and right names make sense on x-axis but the logic applies to all
         var left = original.clone(), right = original.clone();
         left.max[axis] = value;
         right.min[axis] = value;
@@ -113,6 +131,14 @@ var Bbox = (function () {
             && point.x < this.max.x
             && point.y < this.max.y
             && point.z < this.max.z);
+    };
+    Bbox.prototype.containsInclusive = function (point) {
+        return (point.x >= (this.min.x - EPSILON)
+            && point.y >= (this.min.y - EPSILON)
+            && point.z >= (this.min.z - EPSILON)
+            && point.x <= (this.max.x + EPSILON)
+            && point.y <= (this.max.y + EPSILON)
+            && point.z <= (this.max.z + EPSILON));
     };
     // test for intersection
     Bbox.prototype.intersects = function (box) {
@@ -209,20 +235,14 @@ var Octree = (function () {
         }
         this.label = null;
         var shatter = paintbox.shatter(center);
-        // This happens when the painting box is entirely contained in this box
-        if (shatter.length === 1) {
-            var octant = this.bbox.octant(paintbox.center());
+        for (var i = shatter.length - 1; i >= 0; i--) {
+            var box = shatter[i];
+            var octant = this.bbox.octant(box.center());
             if (octant < 0) {
                 console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
-                return;
+                continue;
             }
             var child = this.children[octant];
-            child.paint(paintbox, label);
-            return;
-        }
-        for (var i = 0; i < 8; i++) {
-            var box = shatter[i];
-            var child = this.children[i];
             child.paint(box, label);
         }
         // merge children when they all agree to prevent sprawl

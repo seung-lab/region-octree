@@ -65,11 +65,11 @@ describe('Bbox', function () {
 		box1.contains(corner).should.equal(true);
 	});
 
-	it('Should shatter', function () {
+	it('Should shatter 8', function () {
 		var box1 = Bbox.create(0,0,0, 1,1,1);
 		var pt = Vec3.create(0.5, 0.5, 0.5);
 
-		var shatter = box1.shatter(pt);
+		var shatter = box1.shatter8(pt);
 		shatter.length.should.equal(8);
 
 		Bbox.equals(shatter[0], Bbox.create(0,0,0, 0.5,0.5,0.5)).should.equal(true);
@@ -82,10 +82,26 @@ describe('Bbox', function () {
 		Bbox.equals(shatter[7], Bbox.create(0.5,0.5,0.5, 1,1,1)).should.equal(true);
 
 		pt = Vec3.create(0.5, 0.1, 0.1);
-		box1.shatter(pt).length.should.equal(8);
+		box1.shatter8(pt).length.should.equal(8);
 
 		pt = Vec3.create(0.5, 0, 0);
-		box1.shatter(pt).length.should.equal(1);
+		box1.shatter8(pt).length.should.equal(1);
+	});
+
+	it('Splits on boundaries', function () {
+		var box1 = Bbox.create(0,0,0, 10,10,10);
+		
+		function validate (pt, expected) {
+			box1.contains(pt).should.equal(false);
+			var shatter = box1.shatter(pt);
+			shatter.length.should.equal(expected);
+		}
+
+		validate(Vec3.create(10, 10, 5), 2);
+		validate(Vec3.create(10, 3, 10), 2);
+		validate(Vec3.create(2, 10, 10), 2);
+		validate(Vec3.create(0, 4, 0), 2);
+		validate(Vec3.create(1, 2, 0), 4);
 	});
 
 	it('Compute octant', function () {

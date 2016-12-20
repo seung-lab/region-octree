@@ -1,5 +1,5 @@
 
-const EPSILON = 1e-10;
+const EPSILON = 1e-14;
 
 export class Vec3 {
 	x: number;
@@ -111,7 +111,7 @@ export class Bbox {
 	}
 
 	// Shatter a bbox into up to 8 octants 
-	shatter (chissel: Vec3) : Bbox[] {
+	shatter8 (chissel: Vec3) : Bbox[] {
 		let glassbox = this;
 
 		if (!glassbox.contains(chissel)) {
@@ -119,7 +119,7 @@ export class Bbox {
 		}
 
 		function create (pt1, pt2) : Bbox {
-			return new Bbox(pt1.clone(), pt2.clone());
+			return new Bbox(pt1, pt2);
 		}
 
 		let center = glassbox.center();
@@ -150,13 +150,38 @@ export class Bbox {
 		];
 	}
 
+	// Shatter a bbox into up to 8 octants 
+	shatter (chissel: Vec3) : Bbox[] {
+		let glassbox = this;
+
+		if (glassbox.contains(chissel)) {
+			// slightly more efficient and lays out indicies 
+			// in bitmappable fashion
+			return glassbox.shatter8(chissel); 
+		}
+		else if (!glassbox.containsInclusive(chissel)) {
+			return [ glassbox ];
+		}
+
+		let splitx = glassbox.split('x', chissel.x);
+		
+		let splity = splitx.map( (box) => box.split('y', chissel.y) );
+
+		let splity2 = [].concat.apply([], splity);
+
+		let splitz = splity2.map( (box) => box.split('z', chissel.z) );
+
+		return [].concat.apply([], splitz); 
+	}
+
 	split (axis: string, value: number) : Bbox[] {
 		let original = this;
 
-		if (original.min[axis] > value || original.max[axis] < value) {
+		if (original.min[axis] >= (value - EPSILON) || original.max[axis] <= (value + EPSILON)) {
 			return [ original ];
 		}
 
+		// left and right names make sense on x-axis but the logic applies to all
 		let left = original.clone(),
 			right = original.clone();
 
@@ -174,6 +199,17 @@ export class Bbox {
 			&& point.x < this.max.x 
 			&& point.y < this.max.y
 			&& point.z < this.max.z 
+		);
+	}
+
+	containsInclusive (point : Vec3) : boolean {
+		return (
+			   point.x >= (this.min.x - EPSILON) 
+			&& point.y >= (this.min.y - EPSILON)
+			&& point.z >= (this.min.z - EPSILON) 
+			&& point.x <= (this.max.x + EPSILON) 
+			&& point.y <= (this.max.y + EPSILON)
+			&& point.z <= (this.max.z + EPSILON) 
 		);
 	}
 
@@ -308,23 +344,16 @@ export class Octree {
 		this.label = null;
 		let shatter = paintbox.shatter( center );
 
-		// This happens when the painting box is entirely contained in this box
-		if (shatter.length === 1) {
-			let octant = this.bbox.octant(paintbox.center());
+		for (let i = shatter.length - 1; i >= 0; i--) {
+			let box = shatter[i];
+			let octant = this.bbox.octant(box.center());
 
 			if (octant < 0) {
 				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
-				return;
+				continue;
 			}
 
 			let child = this.children[octant];
-			child.paint(paintbox, label);
-			return;
-		}
-
-		for (let i = 0; i < 8; i++) {
-			let box = shatter[i];
-			let child = this.children[i];
 			child.paint(box, label);
 		}
 
