@@ -1,6 +1,10 @@
 
 const EPSILON = 1e-14;
 
+function clamp (val, lower, upper) : number {
+	return Math.max(Math.min(val, upper), lower);
+}
+
 export class Vec3 {
 	x: number;
 	y: number;
@@ -50,6 +54,15 @@ export class Vec3 {
 		this.y *= n;
 		this.z *= n;
 		return this;
+	}
+
+	clamp (minpt: Vec3, maxpt: Vec3) : Vec3 {
+		let pt = this.clone();
+		pt.x = clamp(pt.x, minpt.x, maxpt.x);
+		pt.y = clamp(pt.y, minpt.y, maxpt.y);
+		pt.z = clamp(pt.z, minpt.z, maxpt.z);
+
+		return pt;
 	}
 
 	clone () : Vec3 {
@@ -139,6 +152,16 @@ export class Bbox {
 		);
 	}
 
+	clamp (box: Bbox) : Bbox {
+		var bounding = this;
+		var clamped = box.clone();
+
+		clamped.min = clamped.min.clamp(bounding.min, bounding.max); 
+		clamped.max = clamped.max.clamp(bounding.min, bounding.max);
+
+		return clamped;
+	}
+
 	// Shatter a bbox into up to 8 octants 
 	shatter8 (chissel: Vec3) : Bbox[] {
 		let glassbox = this;
@@ -188,9 +211,6 @@ export class Bbox {
 			// in bitmappable fashion
 			return glassbox.shatter8(chissel); 
 		}
-		else if (!glassbox.containsInclusive(chissel)) {
-			return [ glassbox ];
-		}
 
 		let splitx = glassbox.split('x', chissel.x);
 		
@@ -200,7 +220,7 @@ export class Bbox {
 
 		let splitz = splity2.map( (box) => box.split('z', chissel.z) );
 
-		return [].concat.apply([], splitz); 
+		return [].concat.apply([], splitz);
 	}
 
 	split (axis: string, value: number) : Bbox[] {
@@ -367,12 +387,12 @@ export class Octree {
 		let center = this.bbox.center();
 
 		if (this.children === null) {
-			this.children = this.bbox.shatter(center).map( (box) => new Octree(box) );
+			this.children = this.bbox.shatter8(center).map( (box) => new Octree(box) );
 		}
 
 		this.label = null;
-		let shatter = paintbox.shatter( center );
-
+		let shatter = paintbox.shatter( center ).map( (box) => box.clamp(this.bbox) );
+		
 		for (let i = shatter.length - 1; i >= 0; i--) {
 			let box = shatter[i];
 			let octant = this.bbox.octant(box.center());
@@ -418,6 +438,9 @@ export class Octree {
 	voxel (x: number, y: number, z: number) : number {
 		if (this.label !== null) {
 			return this.label;
+		}
+		else if (!this.children) {
+			return null;
 		}
 
 		let octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));

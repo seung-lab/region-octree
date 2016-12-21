@@ -272,30 +272,30 @@ describe('Octree', function () {
 		root.treedepth().should.equal(Math.log2(size) + 1);
 	});
 
-	// it('Can paint a z-line that corsses boundaries.', function () {
-	// 	var size = 8;
+	it('Can paint a z-line that crosses boundaries.', function () {
+		var size = 8;
 
-	// 	var root = new Octree( Bbox.cube(size) );
-	// 	root.paint(Bbox.create(2,2,2, 3,3,5), 666);
+		var root = new Octree( Bbox.cube(size) );
+		root.paint(Bbox.create(2,2,2, 3,3,5), 666);
 
-	// 	root.print();
+		root.treedepth().should.equal(4);
+		root.treesize().should.equal(1 + 8 + 2*8 + 8 + 8);
 
-	// 	console.log(root.treedepth());
-	// 	console.log(root.treesize());
-	// });
+		root.voxel(2,2,2).should.equal(666);
+		root.voxel(2,2,3).should.equal(666);
+		root.voxel(2,2,4).should.equal(666);
+	});
 
-	// it('e2198 -- Can paint center volume of a 256^3 volume.', function () {
-	// 	var size = 256;
-	// 	var sm = size / 4; 
-	// 	var lg = 3 * size / 4;
+	it('e2198 -- Can paint center volume of a 256^3 volume.', function () {
+		var size = 256;
+		var sm = size / 4; 
+		var lg = 3 * size / 4;
 
-	// 	var root = new Octree( Bbox.cube(size) );
-	// 	root.paint(Bbox.create(sm,sm,sm, lg,lg,lg), 666);
+		var root = new Octree( Bbox.cube(size) );
+		root.paint(Bbox.create(sm,sm,sm, lg,lg,lg), 666);
 
-	// 	// root.print();
-
-	// 	// console.log(root.treedepth());
-	// 	// console.log(root.treesize());
-	// });
+		root.treedepth().should.equal(3);
+		root.treesize().should.equal(1 + 8 + 8*8)
+	});
 });
 

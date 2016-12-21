@@ -1,5 +1,8 @@
 "use strict";
 var EPSILON = 1e-14;
+function clamp(val, lower, upper) {
+    return Math.max(Math.min(val, upper), lower);
+}
 var Vec3 = (function () {
     function Vec3(x, y, z) {
         this.x = x;
@@ -36,6 +39,13 @@ var Vec3 = (function () {
         this.y *= n;
         this.z *= n;
         return this;
+    };
+    Vec3.prototype.clamp = function (minpt, maxpt) {
+        var pt = this.clone();
+        pt.x = clamp(pt.x, minpt.x, maxpt.x);
+        pt.y = clamp(pt.y, minpt.y, maxpt.y);
+        pt.z = clamp(pt.z, minpt.z, maxpt.z);
+        return pt;
     };
     Vec3.prototype.clone = function () {
         return new Vec3(this.x, this.y, this.z);
@@ -88,6 +98,13 @@ var Bbox = (function () {
     Bbox.prototype.clone = function () {
         return new Bbox(this.min.clone(), this.max.clone());
     };
+    Bbox.prototype.clamp = function (box) {
+        var bounding = this;
+        var clamped = box.clone();
+        clamped.min = clamped.min.clamp(bounding.min, bounding.max);
+        clamped.max = clamped.max.clamp(bounding.min, bounding.max);
+        return clamped;
+    };
     // Shatter a bbox into up to 8 octants 
     Bbox.prototype.shatter8 = function (chissel) {
         var glassbox = this;
@@ -127,9 +144,6 @@ var Bbox = (function () {
             // slightly more efficient and lays out indicies 
             // in bitmappable fashion
             return glassbox.shatter8(chissel);
-        }
-        else if (!glassbox.containsInclusive(chissel)) {
-            return [glassbox];
         }
         var splitx = glassbox.split('x', chissel.x);
         var splity = splitx.map(function (box) { return box.split('y', chissel.y); });
@@ -238,6 +252,7 @@ var Octree = (function () {
     // Else, shatter box and paint each assigned subvolume
     // if a child doesn't exist, create one
     Octree.prototype.paint = function (paintbox, label) {
+        var _this = this;
         if (paintbox.equals(this.bbox)) {
             this.children = null;
             this.label = label;
@@ -255,10 +270,10 @@ var Octree = (function () {
         }
         var center = this.bbox.center();
         if (this.children === null) {
-            this.children = this.bbox.shatter(center).map(function (box) { return new Octree(box); });
+            this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
         }
         this.label = null;
-        var shatter = paintbox.shatter(center);
+        var shatter = paintbox.shatter(center).map(function (box) { return box.clamp(_this.bbox); });
         for (var i = shatter.length - 1; i >= 0; i--) {
             var box = shatter[i];
             var octant = this.bbox.octant(box.center());
@@ -295,6 +310,9 @@ var Octree = (function () {
     Octree.prototype.voxel = function (x, y, z) {
         if (this.label !== null) {
             return this.label;
+        }
+        else if (!this.children) {
+            return null;
         }
         var octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
         if (octant < 0) {
