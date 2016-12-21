@@ -24,6 +24,34 @@ export class Vec3 {
 		);
 	}
 
+	isPowerOfTwo () : boolean {
+		function pot (n) {
+			if (n !== (n|0)) {
+				return false;
+			}
+
+			// if n is power of two, n - 1 is all ones to the right of the MSB
+			// test for n is not a power of two and logically negate
+			return !(n !== 1 && (n & (n - 1)));
+		}
+
+		return pot(this.x) && pot(this.y) && pot(this.z);
+	}
+
+	addScalar (n: number) : Vec3 {
+		this.x += n;
+		this.y += n;
+		this.z += n;
+		return this;
+	}
+
+	multScalar (n: number) : Vec3 {
+		this.x *= n;
+		this.y *= n;
+		this.z *= n;
+		return this;
+	}
+
 	clone () : Vec3 {
 		return new Vec3(this.x, this.y, this.z);
 	}
@@ -65,6 +93,10 @@ export class Bbox {
 		return Bbox.create(0,0,0, side,side,side);
 	}
 
+	isPowerOfTwo () : boolean {
+		return this.size3().isPowerOfTwo();
+	}
+
 	octant (point: Vec3) : number {
 		let container = this;
 
@@ -81,10 +113,7 @@ export class Bbox {
 			cz = feq(center.z, point.z);
 
 		// If point is located in between octants on the xy, xz, or yz planes.
-		if ((cx && cy)
-			|| (cx && cz)
-			|| (cy && cz)) {
-			
+		if (cx || cy || cz) {
 			return -2;
 		}
 
@@ -348,6 +377,8 @@ export class Octree {
 			let box = shatter[i];
 			let octant = this.bbox.octant(box.center());
 
+			// -1 = not contained in this box, 
+			// -2 = point is located in between two, four, or eight octants on the boundary
 			if (octant < 0) {
 				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
 				continue;
@@ -384,18 +415,18 @@ export class Octree {
 		return all_same;
 	}
 
-	look (x: number, y: number, z: number) : number {
+	voxel (x: number, y: number, z: number) : number {
 		if (this.label !== null) {
 			return this.label;
 		}
 
-		let octant = this.bbox.octant(Vec3.create(x,y,z));
+		let octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
 
 		if (octant < 0) {
-			throw new Error("${octant} was not a good value.");
+			throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
 		}
 
-		return this.children[octant].look(x,y,z);
+		return this.children[octant].voxel(x,y,z);
 	}
 
 	toString () : string {

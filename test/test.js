@@ -224,7 +224,55 @@ describe('Octree', function () {
 		should(root.children[7].children[2].label).be.null;
 	});
 
-	// it('Can paint center volume of a larger volume.', function () {
+	it('Can look up a voxel value in a 4^3', function () {
+		var size = 4;
+		var root = new Octree( Bbox.cube(size) );
+
+		function voxel (pt) {
+			return Bbox.create(pt.x, pt.y, pt.z, pt.x + 1, pt.y + 1, pt.z + 1);
+		}
+
+		function label(x,y,z) {
+			return (x | (y << 8) | (z << 16));
+		}
+
+		function validate (x,y,z) {
+			root.voxel(x,y,z).should.equal(label(x,y,z));
+		}
+
+		function forxyz (fn) {
+			for (var x = 0; x < size; x++) {
+				for (var y = 0; y < size; y++) {
+					for (var z = 0; z < size; z++) {
+						fn(x,y,z);
+					}
+				}
+			}
+		}
+
+		// paint
+		forxyz((x,y,z) => {
+			var vx = voxel(new Vec3(x,y,z));
+			root.paint(vx, label(x, y, z));
+		});
+
+		forxyz(validate);
+
+		function maxsize () {
+			var depth = Math.log2(size);
+			var sum = 0;
+			for (var i = depth; i >= 0; i--) {
+				sum += Math.pow(8, i);
+			}
+
+			return sum;
+		}
+
+		root.treesize().should.equal(maxsize());
+		root.treedepth().should.equal(Math.log2(size) + 1);
+	});
+
+	// it('Can paint a z-line that corsses boundaries.', function () {
 	// 	var size = 8;
 
 	// 	var root = new Octree( Bbox.cube(size) );
@@ -234,6 +282,20 @@ describe('Octree', function () {
 
 	// 	console.log(root.treedepth());
 	// 	console.log(root.treesize());
+	// });
+
+	// it('e2198 -- Can paint center volume of a 256^3 volume.', function () {
+	// 	var size = 256;
+	// 	var sm = size / 4; 
+	// 	var lg = 3 * size / 4;
+
+	// 	var root = new Octree( Bbox.cube(size) );
+	// 	root.paint(Bbox.create(sm,sm,sm, lg,lg,lg), 666);
+
+	// 	// root.print();
+
+	// 	// console.log(root.treedepth());
+	// 	// console.log(root.treesize());
 	// });
 });
 

@@ -14,6 +14,29 @@ var Vec3 = (function () {
             && Math.abs(a.y - b.y) < EPSILON
             && Math.abs(a.z - b.z) < EPSILON);
     };
+    Vec3.prototype.isPowerOfTwo = function () {
+        function pot(n) {
+            if (n !== (n | 0)) {
+                return false;
+            }
+            // if n is power of two, n - 1 is all ones to the right of the MSB
+            // test for n is not a power of two and logically negate
+            return !(n !== 1 && (n & (n - 1)));
+        }
+        return pot(this.x) && pot(this.y) && pot(this.z);
+    };
+    Vec3.prototype.addScalar = function (n) {
+        this.x += n;
+        this.y += n;
+        this.z += n;
+        return this;
+    };
+    Vec3.prototype.multScalar = function (n) {
+        this.x *= n;
+        this.y *= n;
+        this.z *= n;
+        return this;
+    };
     Vec3.prototype.clone = function () {
         return new Vec3(this.x, this.y, this.z);
     };
@@ -37,6 +60,9 @@ var Bbox = (function () {
     Bbox.cube = function (side) {
         return Bbox.create(0, 0, 0, side, side, side);
     };
+    Bbox.prototype.isPowerOfTwo = function () {
+        return this.size3().isPowerOfTwo();
+    };
     Bbox.prototype.octant = function (point) {
         var container = this;
         if (!container.contains(point)) {
@@ -46,9 +72,7 @@ var Bbox = (function () {
         var feq = function (a, b) { return Math.abs(a - b) < EPSILON; };
         var cx = feq(center.x, point.x), cy = feq(center.y, point.y), cz = feq(center.z, point.z);
         // If point is located in between octants on the xy, xz, or yz planes.
-        if ((cx && cy)
-            || (cx && cz)
-            || (cy && cz)) {
+        if (cx || cy || cz) {
             return -2;
         }
         return (+((center.x - point.x) < 0)
@@ -238,6 +262,8 @@ var Octree = (function () {
         for (var i = shatter.length - 1; i >= 0; i--) {
             var box = shatter[i];
             var octant = this.bbox.octant(box.center());
+            // -1 = not contained in this box, 
+            // -2 = point is located in between two, four, or eight octants on the boundary
             if (octant < 0) {
                 console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
                 continue;
@@ -266,15 +292,15 @@ var Octree = (function () {
         }
         return all_same;
     };
-    Octree.prototype.look = function (x, y, z) {
+    Octree.prototype.voxel = function (x, y, z) {
         if (this.label !== null) {
             return this.label;
         }
-        var octant = this.bbox.octant(Vec3.create(x, y, z));
+        var octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
         if (octant < 0) {
-            throw new Error("${octant} was not a good value.");
+            throw new Error("Octant " + octant + " was an error code for " + this.bbox + " @ " + x + ", " + y + ", " + z + ".");
         }
-        return this.children[octant].look(x, y, z);
+        return this.children[octant].voxel(x, y, z);
     };
     Octree.prototype.toString = function () {
         var isleaf = this.children
