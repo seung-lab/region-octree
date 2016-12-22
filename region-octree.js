@@ -247,6 +247,58 @@ var Octree = (function () {
         });
         return curdepth;
     };
+    /*
+    imageSlice (axis, index, bytes) : ImageData {
+        let _this = this;
+
+        let square = this.slice(axis, index, bytes);
+        let size3 = this.bbox.size3();
+
+        let sizes = {
+            x: [ size3.y, size3.z ],
+            y: [ size3.x, size3.z ],
+            z: [ size3.x, size3.y ],
+        };
+
+        let size = sizes[axis];
+
+        // see https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
+        let imgdata = this.canvas_context.createImageData(size[0], size[1]);
+
+        let maskset = this.getRenderMaskSet();
+
+        const rmask = maskset.r,
+            gmask = maskset.g,
+            bmask = maskset.b,
+            amask = maskset.a;
+
+        // if we break this for loop up by bytes, we can extract extra performance.
+        // If we want to handle transparency efficiently, you'll want to break out the
+        // 32 bit case so you can avoid an if statement.
+
+        // you can also avoid doing the assignment for index 1 and 2 for 8 bit, and 2 for 16 bit
+        // This code seemed more elegant to me though, so I won't prematurely optimize.
+
+        let data = imgdata.data;
+
+        let fixedalpha = bytes === 4 // no alpha channel w/ less than 4 bytes
+            ? 0x00000000
+            : 0xffffffff;
+
+        let di = data.length - 4;
+        for (let si = square.length - 1; si >= 0; si--) {
+            data[di + 0] = (square[si] & rmask);
+            data[di + 1] = (square[si] & gmask) >>> 8;
+            data[di + 2] = (square[si] & bmask) >>> 16;
+            data[di + 3] = ((square[si] & amask) | fixedalpha) >>> 24; // can handle transparency specially if necessary
+                
+            di -= 4;
+        }
+
+        return imgdata;
+    }
+
+    */
     Octree.prototype.slice = function (axis, index, bytes) {
         var _this = this;
         var faces = {
@@ -362,6 +414,39 @@ var Octree = (function () {
             throw new Error("Octant " + octant + " was an error code for " + this.bbox + " @ " + x + ", " + y + ", " + z + ".");
         }
         return this.children[octant].voxel(x, y, z);
+    };
+    // http://stackoverflow.com/questions/504030/javascript-endian-encoding
+    // http://stackoverflow.com/questions/19499500/canvas-getimagedata-for-optimal-performance-to-pull-out-all-data-or-one-at-a
+    Octree.prototype.isLittleEndian = function () {
+        var arr32 = new Uint32Array(1);
+        var arr8 = new Uint8Array(arr32.buffer);
+        arr32[0] = 255;
+        if (arr8[0] === 255) {
+            this.isLittleEndian = function () { return true; };
+        }
+        else {
+            this.isLittleEndian = function () { return false; };
+        }
+        return this.isLittleEndian();
+    };
+    // For internal use, return the right bitmask for rgba image slicing
+    // depending on CPU endianess.
+    Octree.prototype.getRenderMaskSet = function () {
+        var bitmasks = [
+            {
+                r: 0x000000ff,
+                g: 0x0000ff00,
+                b: 0x00ff0000,
+                a: 0xff000000
+            },
+            {
+                r: 0xff000000,
+                g: 0x00ff0000,
+                b: 0x0000ff00,
+                a: 0x000000ff
+            },
+        ];
+        return bitmasks[this.isLittleEndian() ? 0 : 1];
     };
     Octree.prototype.arrayType = function (bytes) {
         var choices = {

@@ -276,6 +276,19 @@ describe('Octree', function () {
 		root.treesize().should.equal(1 + 8 + 8*8)
 	});
 
+	it('e2198 -- Color a 256^3 volume uniformly.', function () {
+		var size = 16;
+		
+		var root = new Octree( Bbox.cube(size) );
+		
+		forxyz(size, (x,y,z) => {
+			root.paint(voxel(Vec3.create(x,y,z)), 666);
+		});
+
+		root.treedepth().should.equal(1);
+		root.treesize().should.equal(1);
+	});
+
 	it('Retrieves slices correctly', function () {
 		var size = 2;
 		var root = new Octree( Bbox.cube(size) );
