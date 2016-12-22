@@ -40,6 +40,13 @@ var Vec3 = (function () {
         this.z *= n;
         return this;
     };
+    Vec3.prototype.fastClamp = function (minpt, maxpt) {
+        var pt = this;
+        pt.x = clamp(pt.x, minpt.x, maxpt.x);
+        pt.y = clamp(pt.y, minpt.y, maxpt.y);
+        pt.z = clamp(pt.z, minpt.z, maxpt.z);
+        return pt;
+    };
     Vec3.prototype.clamp = function (minpt, maxpt) {
         var pt = this.clone();
         pt.x = clamp(pt.x, minpt.x, maxpt.x);
@@ -79,14 +86,14 @@ var Bbox = (function () {
             return -1;
         }
         var center = container.center();
-        // let abs = Math.abs;
-        // let feq = (a,b) => abs(a - b) < EPSILON;
-        // // If point is located in between octants on the xy, xz, or yz planes.
-        // if (   feq(center.x, point.x) 
-        // 	|| feq(center.y, point.y) 
-        // 	|| feq(center.z, point.z)) {
-        // 	return -2;
-        // }
+        var abs = Math.abs;
+        var feq = function (a, b) { return abs(a - b) < EPSILON; };
+        // If point is located in between octants on the xy, xz, or yz planes.
+        if (feq(center.x, point.x)
+            || feq(center.y, point.y)
+            || feq(center.z, point.z)) {
+            return -2;
+        }
         return (+((center.x - point.x) < 0)
             | (+((center.y - point.y) < 0) << 1)
             | (+((center.z - point.z) < 0) << 2));
@@ -99,6 +106,12 @@ var Bbox = (function () {
     };
     Bbox.prototype.clone = function () {
         return new Bbox(this.min.clone(), this.max.clone());
+    };
+    Bbox.prototype.fastClamp = function (clampingbox) {
+        var boxtoclamp = this;
+        boxtoclamp.min.fastClamp(clampingbox.min, clampingbox.max);
+        boxtoclamp.max.fastClamp(clampingbox.min, clampingbox.max);
+        return boxtoclamp;
     };
     Bbox.prototype.clamp = function (box) {
         var bounding = this;
@@ -151,12 +164,13 @@ var Bbox = (function () {
         // creating more arrays so its somewhat faster
         // [  .,  .,  .,  .,  .,  .,  .,  .] 0th
         // [ xl, xr,  .,  .,  .,  .,  .,  .] 1st
-        // [ xl, xr,  .,  ., yl, yr,  .,  .] 2nd
-        // [ xl, xr,  .,  ., yl, yr, yl, yr] 3rd
+        // [  -, xr,  .,  ., yl, yr,  .,  .] 2nd
+        // [  -,  -,  .,  ., yl, yr, yl, yr] 3rd
         // [ z1, z2,  .,  .,  -, yr, yl, yr] 4th
         // [ z1, z2, z3, z4,  -,  -, yl, yr] 5th
         // [ z1, z2, z3, z4, z5, z6,  -, yr] 6th
         // [ z1, z2, z3, z4, z5, z6, z7, z8] 7th
+        // key: . = empty, - = used
         var arr = new Array(8); // 0th
         _a = glassbox.split('x', chissel.x), arr[0] = _a[0], arr[1] = _a[1]; // 1st
         if (arr[0])
@@ -393,13 +407,6 @@ var Octree = (function () {
             return;
         }
         else if (this.bbox.volume() <= 1) {
-            if (paintbox.volume() >= 0.5) {
-                this.label = label;
-                this.children = null;
-            }
-            return;
-        }
-        else if (paintbox.volume() < 0.5) {
             return;
         }
         var center = this.bbox.center();

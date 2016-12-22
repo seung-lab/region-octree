@@ -63,6 +63,16 @@ export class Vec3 {
 		return this;
 	}
 
+	fastClamp (minpt: Vec3, maxpt: Vec3) : Vec3 {
+		let pt = this;
+
+		pt.x = clamp(pt.x, minpt.x, maxpt.x);
+		pt.y = clamp(pt.y, minpt.y, maxpt.y);
+		pt.z = clamp(pt.z, minpt.z, maxpt.z);
+
+		return pt;
+	}
+
 	clamp (minpt: Vec3, maxpt: Vec3) : Vec3 {
 		let pt = this.clone();
 		pt.x = clamp(pt.x, minpt.x, maxpt.x);
@@ -158,6 +168,15 @@ export class Bbox {
 			this.min.clone(),
 			this.max.clone()
 		);
+	}
+
+	fastClamp (clampingbox: Bbox) : Bbox {
+		var boxtoclamp = this;
+
+		boxtoclamp.min.fastClamp(clampingbox.min, clampingbox.max); 
+		boxtoclamp.max.fastClamp(clampingbox.min, clampingbox.max);
+		
+		return boxtoclamp;
 	}
 
 	clamp (box: Bbox) : Bbox {
@@ -524,16 +543,9 @@ export class Octree {
 			return;
 		}
 		else if (this.bbox.volume() <= 1) {
-			if (paintbox.volume() >= 0.5) {
-				this.label = label;
-				this.children = null;
-			}
 			return;
 		}
-		else if (paintbox.volume() < 0.5) {
-			return;
-		}
-
+		
 		let center = this.bbox.center();
 
 		if (this.children === null) {
