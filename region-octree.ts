@@ -98,6 +98,7 @@ export class Vec3 {
 export class Bbox {
 	min: Vec3; // bottom left
 	max: Vec3; // top right
+
 	constructor(a: Vec3, b: Vec3) {
 		this.min = new Vec3(
 			Math.min(a.x, b.x),
@@ -136,22 +137,24 @@ export class Bbox {
 
 		let center = container.center();
 
-		let abs = Math.abs;
+		// Maybe not necessary for debugged code.
 
-		let feq = (a,b) => abs(a - b) < EPSILON;
+		// let abs = Math.abs;
 
-		// If point is located in between octants on the xy, xz, or yz planes.
-		if (   feq(center.x, point.x) 
-			|| feq(center.y, point.y) 
-			|| feq(center.z, point.z)) {
+		// let feq = (a,b) => abs(a - b) < EPSILON;
 
-			return -2;
-		}
+		// // If point is located in between octants on the xy, xz, or yz planes.
+		// if (   feq(center.x, point.x) 
+		// 	|| feq(center.y, point.y) 
+		// 	|| feq(center.z, point.z)) {
+
+		// 	return -2;
+		// }
 
 		return (
-			  +((center.x - point.x) < 0)
-			| (+((center.y - point.y) < 0) << 1)
-			| (+((center.z - point.z) < 0) << 2)
+			  (((center.x - point.x) < 0)|0)
+			| ((((center.y - point.y) < 0)|0) << 1)
+			| ((((center.z - point.z) < 0)|0) << 2)
 		);
 	}
 
@@ -553,30 +556,29 @@ export class Octree {
 		}
 
 		this.label = null;
-		let shatter = paintbox.shatter( center ).map( (box) => box.fastClamp(this.bbox) );
-		
-		if (shatter.length === 8) {
-			for (let octant = 0; octant < 8; octant++) {
-				let box = shatter[octant];
-				let child = this.children[octant];
-				child.paint(box, label);
-			}
+
+		let shatter; 
+
+		if (paintbox.volume() === 1) {
+			shatter = [ paintbox.fastClamp(this.bbox) ];
 		}
 		else {
-			for (let i = shatter.length - 1; i >= 0; i--) {
-				let box = shatter[i];
-				let octant = this.bbox.octant(box.center());
+			shatter = paintbox.shatter( center ).map( (box) => box.fastClamp(this.bbox) );
+		}
+		
+		for (let i = shatter.length - 1; i >= 0; i--) {
+			let box = shatter[i];
+			let octant = this.bbox.octant(box.center());
 
-				// -1 = not contained in this box, 
-				// -2 = point is located in between two, four, or eight octants on the boundary
-				if (octant < 0) {
-					console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
-					continue;
-				}
-
-				let child = this.children[octant];
-				child.paint(box, label);
+			// -1 = not contained in this box, 
+			// -2 = point is located in between two, four, or eight octants on the boundary
+			if (octant < 0) {
+				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
+				continue;
 			}
+
+			let child = this.children[octant];
+			child.paint(box, label);
 		}
 
 		// merge children when they all agree to prevent sprawl

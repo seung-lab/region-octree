@@ -86,17 +86,18 @@ var Bbox = (function () {
             return -1;
         }
         var center = container.center();
-        var abs = Math.abs;
-        var feq = function (a, b) { return abs(a - b) < EPSILON; };
-        // If point is located in between octants on the xy, xz, or yz planes.
-        if (feq(center.x, point.x)
-            || feq(center.y, point.y)
-            || feq(center.z, point.z)) {
-            return -2;
-        }
-        return (+((center.x - point.x) < 0)
-            | (+((center.y - point.y) < 0) << 1)
-            | (+((center.z - point.z) < 0) << 2));
+        // Maybe not necessary for debugged code.
+        // let abs = Math.abs;
+        // let feq = (a,b) => abs(a - b) < EPSILON;
+        // // If point is located in between octants on the xy, xz, or yz planes.
+        // if (   feq(center.x, point.x) 
+        // 	|| feq(center.y, point.y) 
+        // 	|| feq(center.z, point.z)) {
+        // 	return -2;
+        // }
+        return ((((center.x - point.x) < 0) | 0)
+            | ((((center.y - point.y) < 0) | 0) << 1)
+            | ((((center.z - point.z) < 0) | 0) << 2));
     };
     Bbox.equals = function (a, b) {
         return a.equals(b);
@@ -414,27 +415,24 @@ var Octree = (function () {
             this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
         }
         this.label = null;
-        var shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
-        if (shatter.length === 8) {
-            for (var octant = 0; octant < 8; octant++) {
-                var box = shatter[octant];
-                var child = this.children[octant];
-                child.paint(box, label);
-            }
+        var shatter;
+        if (paintbox.volume() === 1) {
+            shatter = [paintbox.fastClamp(this.bbox)];
         }
         else {
-            for (var i = shatter.length - 1; i >= 0; i--) {
-                var box = shatter[i];
-                var octant = this.bbox.octant(box.center());
-                // -1 = not contained in this box, 
-                // -2 = point is located in between two, four, or eight octants on the boundary
-                if (octant < 0) {
-                    console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
-                    continue;
-                }
-                var child = this.children[octant];
-                child.paint(box, label);
+            shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
+        }
+        for (var i = shatter.length - 1; i >= 0; i--) {
+            var box = shatter[i];
+            var octant = this.bbox.octant(box.center());
+            // -1 = not contained in this box, 
+            // -2 = point is located in between two, four, or eight octants on the boundary
+            if (octant < 0) {
+                console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
+                continue;
             }
+            var child = this.children[octant];
+            child.paint(box, label);
         }
         // merge children when they all agree to prevent sprawl
         if (this.areAllChildrenSame()) {

@@ -117,7 +117,7 @@ describe('Bbox', function () {
 		box.octant( Vec3.create(1, 51, 51) ).should.equal(6);
 		box.octant( Vec3.create(51, 51, 51) ).should.equal(7);
 
-		box.octant( Vec3.create(50, 50, 50) ).should.equal(-2);
+		// box.octant( Vec3.create(50, 50, 50) ).should.equal(-2);
 	});
 });
 
@@ -277,7 +277,7 @@ describe('Octree', function () {
 	});
 
 	it('e2198 -- Color a 16^3 volume uniformly.', function () {
-		var size = 16;
+		var size = 64;
 		
 		var root = new Octree( Bbox.cube(size) );
 		
