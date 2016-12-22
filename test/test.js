@@ -50,7 +50,7 @@ describe('Bbox', function () {
 	});
 
 	it('Computes point containment.', function () {
-		var box1 = Bbox.create(0,0,0, 1,1,1);
+		var box1 = Bbox.cube(1);
 
 		var centerpt = Vec3.create(0.5, 0.5, 0.5);
 		box1.contains(centerpt).should.equal(true);
@@ -66,7 +66,7 @@ describe('Bbox', function () {
 	});
 
 	it('Should shatter 8', function () {
-		var box1 = Bbox.create(0,0,0, 1,1,1);
+		var box1 = Bbox.cube(1);
 		var pt = Vec3.create(0.5, 0.5, 0.5);
 
 		var shatter = box1.shatter8(pt);
@@ -122,10 +122,9 @@ describe('Bbox', function () {
 });
 
 describe('Octree', function () {
-	var box1 = Bbox.create(0,0,0, 1,1,1);
-	var box2 = Bbox.create(0,0,0, 2,2,2);
-
 	it('Treesize Computed Correctly', function () {
+		var box1 = Bbox.cube(1);
+		var box2 = Bbox.cube(2);
 		var root = new Octree(box2);
 
 		root.treesize().should.equal(1);
@@ -138,6 +137,8 @@ describe('Octree', function () {
 	});
 
 	it('Treedepth Computed Correctly', function () {
+		var box1 = Bbox.cube(1);
+		var box2 = Bbox.cube(2);
 		var root = new Octree(box2);
 
 		root.treedepth().should.equal(1);
@@ -155,6 +156,8 @@ describe('Octree', function () {
 	});
 
 	it('Can paint a 1 voxel tree.', function () {
+		var box1 = Bbox.cube(1);
+		var box2 = Bbox.cube(2);
 		var root = new Octree( box1 );
 		root.paint(box1, 666);
 
@@ -164,6 +167,8 @@ describe('Octree', function () {
 	});
 
 	it('Can paint an octant of a 2x2x2 volume.', function () {
+		var box1 = Bbox.cube(1);
+		var box2 = Bbox.cube(2);
 		var root = new Octree( box2 );
 		root.paint(box1, 666);
 
@@ -179,6 +184,7 @@ describe('Octree', function () {
 	});
 
 	it('Can paint a pixel of a 4x4x4 volume.', function () {
+		var box1 = Bbox.cube(1);
 		var root = new Octree( Bbox.create(0,0,0, 4,4,4) );
 		root.paint(box1, 666);
 
@@ -228,47 +234,19 @@ describe('Octree', function () {
 		var size = 4;
 		var root = new Octree( Bbox.cube(size) );
 
-		function voxel (pt) {
-			return Bbox.create(pt.x, pt.y, pt.z, pt.x + 1, pt.y + 1, pt.z + 1);
-		}
-
-		function label(x,y,z) {
-			return (x | (y << 8) | (z << 16));
-		}
-
-		function validate (x,y,z) {
+		function validate (root, x,y,z) {
 			root.voxel(x,y,z).should.equal(label(x,y,z));
 		}
 
-		function forxyz (fn) {
-			for (var x = 0; x < size; x++) {
-				for (var y = 0; y < size; y++) {
-					for (var z = 0; z < size; z++) {
-						fn(x,y,z);
-					}
-				}
-			}
-		}
-
 		// paint
-		forxyz((x,y,z) => {
+		forxyz(size, (x,y,z) => {
 			var vx = voxel(new Vec3(x,y,z));
 			root.paint(vx, label(x, y, z));
 		});
 
-		forxyz(validate);
+		forxyz(size, validate.bind(root, root));
 
-		function maxsize () {
-			var depth = Math.log2(size);
-			var sum = 0;
-			for (var i = depth; i >= 0; i--) {
-				sum += Math.pow(8, i);
-			}
-
-			return sum;
-		}
-
-		root.treesize().should.equal(maxsize());
+		root.treesize().should.equal(maxsize(size));
 		root.treedepth().should.equal(Math.log2(size) + 1);
 	});
 
@@ -297,5 +275,90 @@ describe('Octree', function () {
 		root.treedepth().should.equal(3);
 		root.treesize().should.equal(1 + 8 + 8*8)
 	});
+
+	it('Retrieves slices correctly', function () {
+		var size = 2;
+		var root = new Octree( Bbox.cube(size) );
+
+		// paint
+		forxyz(size, (x,y,z) => {
+			var vx = voxel(new Vec3(x,y,z));
+			root.paint(vx, label(x, y, z));
+		});
+
+		function validate (sq, x,y, val) {
+			sq[x + size * y].should.equal(val);
+		}
+
+		var square = root.slice('z', 0, 4);
+
+		validate(square, 0,0, label(0,0,0));
+		validate(square, 1,0, label(1,0,0));
+		validate(square, 0,1, label(0,1,0));
+		validate(square, 1,1, label(1,1,0));
+
+		square = root.slice('z', 1, 4);
+
+		validate(square, 0,0, label(0,0,1));
+		validate(square, 1,0, label(1,0,1));
+		validate(square, 0,1, label(0,1,1));
+		validate(square, 1,1, label(1,1,1));
+
+		square = root.slice('y', 0, 4);
+
+		validate(square, 0,0, label(0,0,0));
+		validate(square, 1,0, label(1,0,0));
+		validate(square, 0,1, label(0,0,1));
+		validate(square, 1,1, label(1,0,1));
+
+		square = root.slice('y', 1, 4);
+
+		validate(square, 0,0, label(0,1,0));
+		validate(square, 1,0, label(1,1,0));
+		validate(square, 0,1, label(0,1,1));
+		validate(square, 1,1, label(1,1,1));
+
+		square = root.slice('x', 0, 4);
+
+		validate(square, 0,0, label(0,0,0));
+		validate(square, 1,0, label(0,1,0));
+		validate(square, 0,1, label(0,0,1));
+		validate(square, 1,1, label(0,1,1));
+
+		square = root.slice('x', 1, 4);
+
+		validate(square, 0,0, label(1,0,0));
+		validate(square, 1,0, label(1,1,0));
+		validate(square, 0,1, label(1,0,1));
+		validate(square, 1,1, label(1,1,1));
+	});
+
+	function forxyz (size, fn) {
+		for (var x = 0; x < size; x++) {
+			for (var y = 0; y < size; y++) {
+				for (var z = 0; z < size; z++) {
+					fn(x,y,z);
+				}
+			}
+		}
+	}
+
+	function maxsize (size) {
+		var depth = Math.log2(size);
+		var sum = 0;
+		for (var i = depth; i >= 0; i--) {
+			sum += Math.pow(8, i);
+		}
+
+		return sum;
+	}
+
+	function voxel (pt) {
+		return Bbox.create(pt.x, pt.y, pt.z, pt.x + 1, pt.y + 1, pt.z + 1);
+	}
+
+	function label(x,y,z) {
+		return (x | (y << 8) | (z << 16));
+	}
 });
 

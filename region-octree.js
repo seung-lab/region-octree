@@ -247,6 +247,49 @@ var Octree = (function () {
         });
         return curdepth;
     };
+    Octree.prototype.slice = function (axis, index, bytes) {
+        var _this = this;
+        var faces = {
+            x: ['y', 'z'],
+            y: ['x', 'z'],
+            z: ['x', 'y']
+        };
+        var face = faces[axis];
+        var center = _this.bbox.center();
+        center[axis] = index;
+        if (!_this.bbox.containsInclusive(center)) {
+            throw new Error(index + ' is out of bounds.');
+        }
+        var size = this.bbox.size3();
+        var ArrayType = this.arrayType(bytes);
+        var square = new ArrayType(size[face[0]] * size[face[1]]);
+        var i = square.length - 1;
+        if (axis === 'x') {
+            for (var z = _this.bbox.max.z - 1; z >= 0; --z) {
+                for (var y = _this.bbox.max.y - 1; y >= 0; --y) {
+                    square[i] = _this.voxel(index, y, z);
+                    --i;
+                }
+            }
+        }
+        else if (axis === 'y') {
+            for (var z = _this.bbox.max.z - 1; z >= 0; --z) {
+                for (var x = _this.bbox.max.x - 1; x >= 0; --x) {
+                    square[i] = _this.voxel(x, index, z);
+                    --i;
+                }
+            }
+        }
+        else if (axis === 'z') {
+            for (var y = _this.bbox.max.y - 1; y >= 0; --y) {
+                for (var x = _this.bbox.max.x - 1; x >= 0; --x) {
+                    square[i] = _this.voxel(x, y, index);
+                    --i;
+                }
+            }
+        }
+        return square;
+    };
     // Do the bboxes match? If yes, then delete all children
     // and set the label. 
     // Else, shatter box and paint each assigned subvolume
@@ -319,6 +362,18 @@ var Octree = (function () {
             throw new Error("Octant " + octant + " was an error code for " + this.bbox + " @ " + x + ", " + y + ", " + z + ".");
         }
         return this.children[octant].voxel(x, y, z);
+    };
+    Octree.prototype.arrayType = function (bytes) {
+        var choices = {
+            1: Uint8ClampedArray,
+            2: Uint16Array,
+            4: Uint32Array
+        };
+        var ArrayType = choices[bytes];
+        if (ArrayType === undefined) {
+            throw new Error(bytes + ' is not a valid typed array byte count.');
+        }
+        return ArrayType;
     };
     Octree.prototype.toString = function () {
         var isleaf = this.children

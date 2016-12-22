@@ -363,6 +363,56 @@ export class Octree {
 		return curdepth;
 	}
 
+	slice<T> (axis: string, index: number, bytes: number) : T[] {
+		let _this = this;
+		let faces = {
+			x: [ 'y', 'z' ],
+			y: [ 'x', 'z' ],
+			z: [ 'x', 'y' ],
+		};
+		let face = faces[axis];
+
+		let center = _this.bbox.center();
+		center[axis] = index;
+
+		if (!_this.bbox.containsInclusive(center)) {
+			throw new Error(index + ' is out of bounds.');
+		}
+
+		let size = this.bbox.size3();
+		
+		let ArrayType = this.arrayType(bytes);
+		let square = new ArrayType(size[face[0]] * size[face[1]]);
+
+		let i = square.length - 1;
+		if (axis === 'x') {
+			for (let z = _this.bbox.max.z - 1; z >= 0; --z) {
+				for (let y = _this.bbox.max.y - 1; y >= 0; --y) {
+					square[i] = _this.voxel(index, y, z);
+					--i;
+				}
+			}
+		}
+		else if (axis === 'y') {
+			for (let z = _this.bbox.max.z - 1; z >= 0; --z) {
+				for (let x = _this.bbox.max.x - 1; x >= 0; --x) { 
+					square[i] = _this.voxel(x, index, z);
+					--i;
+				}
+			}
+		}
+		else if (axis === 'z') {
+			for (let y = _this.bbox.max.y - 1; y >= 0; --y) {
+				for (let x = _this.bbox.max.x - 1; x >= 0; --x) { 
+					square[i] = _this.voxel(x, y, index);
+					--i;
+				}
+			}
+		}
+
+		return square;
+	}
+
 	// Do the bboxes match? If yes, then delete all children
 	// and set the label. 
 	// Else, shatter box and paint each assigned subvolume
@@ -450,6 +500,22 @@ export class Octree {
 		}
 
 		return this.children[octant].voxel(x,y,z);
+	}
+
+	arrayType (bytes) {
+		let choices = {
+			1: Uint8ClampedArray,
+			2: Uint16Array,
+			4: Uint32Array,
+		};
+
+		let ArrayType = choices[bytes];
+
+		if (ArrayType === undefined) {
+			throw new Error(bytes + ' is not a valid typed array byte count.');
+		}
+
+		return ArrayType;
 	}
 
 	toString () : string {
