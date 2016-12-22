@@ -640,9 +640,8 @@ export class Octree {
 			return false;
 		}
 
-		for (let i = 0; i < 8; i++) {
-			let child = this.children[i];
-			all_same = all_same && (first_label === child.label);
+		for (let i = 1; i < 8; i++) {
+			all_same = all_same && (first_label === this.children[i].label);
 			
 			if (!all_same) {
 				break;

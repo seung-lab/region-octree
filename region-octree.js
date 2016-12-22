@@ -477,9 +477,8 @@ var Octree = (function () {
         if (first_label === 0) {
             return false;
         }
-        for (var i = 0; i < 8; i++) {
-            var child = this.children[i];
-            all_same = all_same && (first_label === child.label);
+        for (var i = 1; i < 8; i++) {
+            all_same = all_same && (first_label === this.children[i].label);
             if (!all_same) {
                 break;
             }
