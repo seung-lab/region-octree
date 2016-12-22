@@ -80,12 +80,14 @@ var Bbox = (function () {
     Bbox.prototype.isPowerOfTwo = function () {
         return this.size3().isPowerOfTwo();
     };
-    Bbox.prototype.octant = function (point) {
+    // PERFORMANCE SENSITIVE
+    Bbox.prototype.octant = function (point, center) {
+        if (center === void 0) { center = null; }
         var container = this;
         if (!container.contains(point)) {
             return -1;
         }
-        var center = container.center();
+        center = center || this.center();
         // Maybe not necessary for debugged code.
         // let abs = Math.abs;
         // let feq = (a,b) => abs(a - b) < EPSILON;
@@ -95,6 +97,9 @@ var Bbox = (function () {
         // 	|| feq(center.z, point.z)) {
         // 	return -2;
         // }
+        // Note: Ignore any typescript errors for these lines.
+        // It doesn't know wtf it's talking about and |0 makes
+        // things faster than unary plus which typescript likes
         return ((((center.x - point.x) < 0) | 0)
             | ((((center.y - point.y) < 0) | 0) << 1)
             | ((((center.z - point.z) < 0) | 0) << 2));
@@ -400,6 +405,7 @@ var Octree = (function () {
     // and set the label. 
     // Else, shatter box and paint each assigned subvolume
     // if a child doesn't exist, create one
+    // PERFORMANCE SENSITIVE
     Octree.prototype.paint = function (paintbox, label) {
         var _this = this;
         if (paintbox.equals(this.bbox)) {
@@ -424,7 +430,7 @@ var Octree = (function () {
         }
         for (var i = shatter.length - 1; i >= 0; i--) {
             var box = shatter[i];
-            var octant = this.bbox.octant(box.center());
+            var octant = this.bbox.octant(box.center(), center);
             // -1 = not contained in this box, 
             // -2 = point is located in between two, four, or eight octants on the boundary
             if (octant < 0) {

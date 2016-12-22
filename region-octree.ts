@@ -111,6 +111,8 @@ export class Bbox {
 			Math.max(a.y, b.y),
 			Math.max(a.z, b.z)
 		);
+
+
 	}
 
 	static create (a:number,b:number,c:number, x:number,y:number,z:number) : Bbox {
@@ -128,14 +130,14 @@ export class Bbox {
 		return this.size3().isPowerOfTwo();
 	}
 
-	octant (point: Vec3) : number {
+	octant (point: Vec3, center: Vec3 = null) : number {
 		let container = this;
 
 		if (!container.contains(point)) {
 			return -1;
 		}
 
-		let center = container.center();
+		center = center || this.center();
 
 		// Maybe not necessary for debugged code.
 
@@ -150,6 +152,11 @@ export class Bbox {
 
 		// 	return -2;
 		// }
+
+
+		// Note: Ignore any typescript errors for these lines.
+		// It doesn't know wtf it's talking about and |0 makes
+		// things faster than unary plus which typescript likes
 
 		return (
 			  (((center.x - point.x) < 0)|0)
@@ -535,6 +542,8 @@ export class Octree {
 		return square;
 	}
 
+	// --- PERFORMANCE SENSITIVE ---
+
 	// Do the bboxes match? If yes, then delete all children
 	// and set the label. 
 	// Else, shatter box and paint each assigned subvolume
@@ -568,7 +577,7 @@ export class Octree {
 		
 		for (let i = shatter.length - 1; i >= 0; i--) {
 			let box = shatter[i];
-			let octant = this.bbox.octant(box.center());
+			let octant = this.bbox.octant(box.center(), center);
 
 			// -1 = not contained in this box, 
 			// -2 = point is located in between two, four, or eight octants on the boundary
