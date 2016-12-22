@@ -159,9 +159,9 @@ export class Bbox {
 		// things faster than unary plus which typescript likes
 
 		return (
-			  (((center.x - point.x) < 0)|0)
-			| ((((center.y - point.y) < 0)|0) << 1)
-			| ((((center.z - point.z) < 0)|0) << 2)
+			  ((center.x < point.x)|0)
+			| (((center.y < point.y)|0) << 1)
+			| (((center.z < point.z)|0) << 2)
 		);
 	}
 
@@ -617,9 +617,9 @@ export class Octree {
 		}
 		
 		let octant = (
-			  (((center.x - x) < 0)|0)
-			| ((((center.y - y) < 0)|0) << 1)
-			| ((((center.z - z) < 0)|0) << 2)
+			  ((center.x < x)|0)
+			| (((center.y < y)|0) << 1)
+			| (((center.z < z)|0) << 2)
 		);
 
 		let child = this.children[octant];

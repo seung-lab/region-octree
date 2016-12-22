@@ -99,9 +99,9 @@ var Bbox = (function () {
         // Note: Ignore any typescript errors for these lines.
         // It doesn't know wtf it's talking about and |0 makes
         // things faster than unary plus which typescript likes
-        return ((((center.x - point.x) < 0) | 0)
-            | ((((center.y - point.y) < 0) | 0) << 1)
-            | ((((center.z - point.z) < 0) | 0) << 2));
+        return (((center.x < point.x) | 0)
+            | (((center.y < point.y) | 0) << 1)
+            | (((center.z < point.z) | 0) << 2));
     };
     Bbox.equals = function (a, b) {
         return a.equals(b);
@@ -460,9 +460,9 @@ var Octree = (function () {
         if (this.children === null) {
             this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
         }
-        var octant = ((((center.x - x) < 0) | 0)
-            | ((((center.y - y) < 0) | 0) << 1)
-            | ((((center.z - z) < 0) | 0) << 2));
+        var octant = (((center.x < x) | 0)
+            | (((center.y < y) | 0) << 1)
+            | (((center.z < z) | 0) << 2));
         var child = this.children[octant];
         child.paintVoxel(x, y, z, label);
         // merge children when they all agree to prevent sprawl
