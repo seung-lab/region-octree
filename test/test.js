@@ -89,7 +89,7 @@ describe('Bbox', function () {
 	});
 
 	it('Splits on boundaries', function () {
-		var box1 = Bbox.create(0,0,0, 10,10,10);
+		var box1 = Bbox.cube(10);
 		
 		function validate (pt, expected) {
 			box1.contains(pt).should.equal(false);
@@ -277,7 +277,7 @@ describe('Octree', function () {
 	});
 
 	it('e2198 -- Color a 256^3 volume uniformly.', function () {
-		var size = 16;
+		var size = 256;
 		
 		var root = new Octree( Bbox.cube(size) );
 		

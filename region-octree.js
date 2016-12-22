@@ -79,12 +79,14 @@ var Bbox = (function () {
             return -1;
         }
         var center = container.center();
-        var feq = function (a, b) { return Math.abs(a - b) < EPSILON; };
-        var cx = feq(center.x, point.x), cy = feq(center.y, point.y), cz = feq(center.z, point.z);
-        // If point is located in between octants on the xy, xz, or yz planes.
-        if (cx || cy || cz) {
-            return -2;
-        }
+        // let abs = Math.abs;
+        // let feq = (a,b) => abs(a - b) < EPSILON;
+        // // If point is located in between octants on the xy, xz, or yz planes.
+        // if (   feq(center.x, point.x) 
+        // 	|| feq(center.y, point.y) 
+        // 	|| feq(center.z, point.z)) {
+        // 	return -2;
+        // }
         return (+((center.x - point.x) < 0)
             | (+((center.y - point.y) < 0) << 1)
             | (+((center.z - point.z) < 0) << 2));
@@ -145,16 +147,53 @@ var Bbox = (function () {
             // in bitmappable fashion
             return glassbox.shatter8(chissel);
         }
-        var splitx = glassbox.split('x', chissel.x);
-        var splity = splitx.map(function (box) { return box.split('y', chissel.y); });
-        var splity2 = [].concat.apply([], splity);
-        var splitz = splity2.map(function (box) { return box.split('z', chissel.z); });
-        return [].concat.apply([], splitz);
+        // this looks bizzare but it's essentially a way to avoid 
+        // creating more arrays so its somewhat faster
+        // [  .,  .,  .,  .,  .,  .,  .,  .] 0th
+        // [ xl, xr,  .,  .,  .,  .,  .,  .] 1st
+        // [ xl, xr,  .,  ., yl, yr,  .,  .] 2nd
+        // [ xl, xr,  .,  ., yl, yr, yl, yr] 3rd
+        // [ z1, z2,  .,  .,  -, yr, yl, yr] 4th
+        // [ z1, z2, z3, z4,  -,  -, yl, yr] 5th
+        // [ z1, z2, z3, z4, z5, z6,  -, yr] 6th
+        // [ z1, z2, z3, z4, z5, z6, z7, z8] 7th
+        var arr = new Array(8); // 0th
+        _a = glassbox.split('x', chissel.x), arr[0] = _a[0], arr[1] = _a[1]; // 1st
+        if (arr[0])
+            _b = arr[0].split('y', chissel.y), arr[4] = _b[0], arr[5] = _b[1];
+        if (arr[1])
+            _c = arr[1].split('y', chissel.y), arr[6] = _c[0], arr[7] = _c[1];
+        if (arr[4])
+            _d = arr[4].split('z', chissel.z), arr[0] = _d[0], arr[1] = _d[1];
+        else {
+            arr[0] = null;
+            arr[1] = null;
+        }
+        if (arr[5])
+            _e = arr[5].split('z', chissel.z), arr[2] = _e[0], arr[4] = _e[1];
+        else {
+            arr[2] = null;
+            arr[4] = null;
+        }
+        if (arr[6])
+            _f = arr[6].split('z', chissel.z), arr[4] = _f[0], arr[5] = _f[1];
+        else {
+            arr[4] = null;
+            arr[5] = null;
+        }
+        if (arr[7])
+            _g = arr[7].split('z', chissel.z), arr[6] = _g[0], arr[7] = _g[1];
+        else {
+            arr[6] = null;
+            arr[7] = null;
+        }
+        return arr.filter(function (x) { return x; });
+        var _a, _b, _c, _d, _e, _f, _g;
     };
     Bbox.prototype.split = function (axis, value) {
         var original = this;
         if (original.min[axis] >= (value - EPSILON) || original.max[axis] <= (value + EPSILON)) {
-            return [original];
+            return [original, null];
         }
         // left and right names make sense on x-axis but the logic applies to all
         var left = original.clone(), right = original.clone();
@@ -369,17 +408,26 @@ var Octree = (function () {
         }
         this.label = null;
         var shatter = paintbox.shatter(center).map(function (box) { return box.clamp(_this.bbox); });
-        for (var i = shatter.length - 1; i >= 0; i--) {
-            var box = shatter[i];
-            var octant = this.bbox.octant(box.center());
-            // -1 = not contained in this box, 
-            // -2 = point is located in between two, four, or eight octants on the boundary
-            if (octant < 0) {
-                console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
-                continue;
+        if (shatter.length === 8) {
+            for (var octant = 0; octant < 8; octant++) {
+                var box = shatter[octant];
+                var child = this.children[octant];
+                child.paint(box, label);
             }
-            var child = this.children[octant];
-            child.paint(box, label);
+        }
+        else {
+            for (var i = shatter.length - 1; i >= 0; i--) {
+                var box = shatter[i];
+                var octant = this.bbox.octant(box.center());
+                // -1 = not contained in this box, 
+                // -2 = point is located in between two, four, or eight octants on the boundary
+                if (octant < 0) {
+                    console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
+                    continue;
+                }
+                var child = this.children[octant];
+                child.paint(box, label);
+            }
         }
         // merge children when they all agree to prevent sprawl
         if (this.areAllChildrenSame()) {

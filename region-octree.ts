@@ -126,14 +126,15 @@ export class Bbox {
 
 		let center = container.center();
 
-		let feq = (a,b) => Math.abs(a - b) < EPSILON;
+		let abs = Math.abs;
 
-		let cx = feq(center.x, point.x), 
-			cy = feq(center.y, point.y), 
-			cz = feq(center.z, point.z);
+		let feq = (a,b) => abs(a - b) < EPSILON;
 
 		// If point is located in between octants on the xy, xz, or yz planes.
-		if (cx || cy || cz) {
+		if (   feq(center.x, point.x) 
+			|| feq(center.y, point.y) 
+			|| feq(center.z, point.z)) {
+
 			return -2;
 		}
 
@@ -219,22 +220,61 @@ export class Bbox {
 			return glassbox.shatter8(chissel); 
 		}
 
-		let splitx = glassbox.split('x', chissel.x);
+		// this looks bizzare but it's essentially a way to avoid 
+		// creating more arrays so its somewhat faster
+		// [  .,  .,  .,  .,  .,  .,  .,  .] 0th
+		// [ xl, xr,  .,  .,  .,  .,  .,  .] 1st
+		// [  -, xr,  .,  ., yl, yr,  .,  .] 2nd
+		// [  -,  -,  .,  ., yl, yr, yl, yr] 3rd
+		// [ z1, z2,  .,  .,  -, yr, yl, yr] 4th
+		// [ z1, z2, z3, z4,  -,  -, yl, yr] 5th
+		// [ z1, z2, z3, z4, z5, z6,  -, yr] 6th
+		// [ z1, z2, z3, z4, z5, z6, z7, z8] 7th
+		// key: . = empty, - = used
+
+		let arr = new Array(8); // 0th
+
+		[ arr[0], arr[1] ] = glassbox.split('x', chissel.x); // 1st
 		
-		let splity = splitx.map( (box) => box.split('y', chissel.y) );
+		if (arr[0]) // 2nd
+			[ arr[4], arr[5] ] = arr[0].split('y', chissel.y)
+		if (arr[1]) // 3rd
+			[ arr[6], arr[7] ] = arr[1].split('y', chissel.y)
 
-		let splity2 = [].concat.apply([], splity);
+		if (arr[4]) // 4th
+			[ arr[0], arr[1] ] = arr[4].split('z', chissel.z);
+		else {
+			arr[0] = null;
+			arr[1] = null;
+		}
 
-		let splitz = splity2.map( (box) => box.split('z', chissel.z) );
+		if (arr[5]) // 5th
+			[ arr[2], arr[4] ] = arr[5].split('z', chissel.z);
+		else {
+			arr[2] = null;
+			arr[4] = null;
+		}
+		if (arr[6]) // 6th
+			[ arr[4], arr[5] ] = arr[6].split('z', chissel.z);
+		else {
+			arr[4] = null;
+			arr[5] = null;
+		}
+		if (arr[7]) // 7th
+			[ arr[6], arr[7] ] = arr[7].split('z', chissel.z);
+		else {
+			arr[6] = null;
+			arr[7] = null;
+		}
 
-		return [].concat.apply([], splitz);
+		return arr.filter( (x) => x );
 	}
 
 	split (axis: string, value: number) : Bbox[] {
 		let original = this;
 
 		if (original.min[axis] >= (value - EPSILON) || original.max[axis] <= (value + EPSILON)) {
-			return [ original ];
+			return [ original, null ];
 		}
 
 		// left and right names make sense on x-axis but the logic applies to all
@@ -503,19 +543,28 @@ export class Octree {
 		this.label = null;
 		let shatter = paintbox.shatter( center ).map( (box) => box.clamp(this.bbox) );
 		
-		for (let i = shatter.length - 1; i >= 0; i--) {
-			let box = shatter[i];
-			let octant = this.bbox.octant(box.center());
-
-			// -1 = not contained in this box, 
-			// -2 = point is located in between two, four, or eight octants on the boundary
-			if (octant < 0) {
-				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
-				continue;
+		if (shatter.length === 8) {
+			for (let octant = 0; octant < 8; octant++) {
+				let box = shatter[octant];
+				let child = this.children[octant];
+				child.paint(box, label);
 			}
+		}
+		else {
+			for (let i = shatter.length - 1; i >= 0; i--) {
+				let box = shatter[i];
+				let octant = this.bbox.octant(box.center());
 
-			let child = this.children[octant];
-			child.paint(box, label);
+				// -1 = not contained in this box, 
+				// -2 = point is located in between two, four, or eight octants on the boundary
+				if (octant < 0) {
+					console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
+					continue;
+				}
+
+				let child = this.children[octant];
+				child.paint(box, label);
+			}
 		}
 
 		// merge children when they all agree to prevent sprawl
