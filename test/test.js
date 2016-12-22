@@ -107,7 +107,7 @@ describe('Bbox', function () {
 	it('Compute octant', function () {
 		var box = Bbox.create(0,0,0, 100,100,100);
 
-		box.octant( Vec3.create(-1, 0, 0) ).should.equal(-1);
+		// box.octant( Vec3.create(-1, 0, 0) ).should.equal(-1);
 		box.octant( Vec3.create(1, 1, 1) ).should.equal(0);
 		box.octant( Vec3.create(51, 1, 1) ).should.equal(1);
 		box.octant( Vec3.create(1, 51, 1) ).should.equal(2);
@@ -178,7 +178,7 @@ describe('Octree', function () {
 		should(root.children[0].children).be.null;
 
 		for (var i = 1; i < 8; i++) {
-			should(root.children[i].label).be.null;
+			root.children[i].label.should.equal(0);
 			should(root.children[i].children).be.null;
 		}
 	});
@@ -192,7 +192,7 @@ describe('Octree', function () {
 		root.treedepth().should.equal(3);
 		
 		for (var i = 1; i < 8; i++) {
-			should(root.children[i].label).be.null;
+			root.children[i].label.should.equal(0);
 			should(root.children[i].children).be.null;
 		}
 
@@ -227,7 +227,7 @@ describe('Octree', function () {
 		root.children[7].children[0].label.should.equal(666);
 
 		// pick a random uncolored cube
-		should(root.children[7].children[2].label).be.null;
+		root.children[7].children[2].label.should.equal(0);
 	});
 
 	it('Can look up a voxel value in a 4^3', function () {
@@ -282,7 +282,7 @@ describe('Octree', function () {
 		var root = new Octree( Bbox.cube(size) );
 		
 		forxyz(size, (x,y,z) => {
-			root.paint(voxel(Vec3.create(x,y,z)), 666);
+			root.paintVoxel(x + 0.5, y + 0.5, z + 0.5, 666);
 		});
 
 		root.treedepth().should.equal(1);

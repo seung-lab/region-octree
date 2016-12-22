@@ -133,9 +133,9 @@ export class Bbox {
 	octant (point: Vec3, center: Vec3 = null) : number {
 		let container = this;
 
-		if (!container.contains(point)) {
-			return -1;
-		}
+		// if (!container.contains(point)) {
+		// 	return -1;
+		// }
 
 		center = center || this.center();
 
@@ -391,9 +391,9 @@ export class Octree {
 	children: Octree[];
 
 	constructor(bbox: Bbox) {
-		this.bbox = bbox.clone();
+		this.bbox = bbox;
 		this.children = null;
-		this.label = null;
+		this.label = 0;
 	}
 
 	print () : void {
@@ -564,12 +564,12 @@ export class Octree {
 			this.children = this.bbox.shatter8(center).map( (box) => new Octree(box) );
 		}
 
-		this.label = null;
+		this.label = 0;
 
 		let shatter; 
 
 		if (paintbox.volume() === 1) {
-			shatter = [ paintbox.fastClamp(this.bbox) ];
+			shatter = [ paintbox ];
 		}
 		else {
 			shatter = paintbox.shatter( center ).map( (box) => box.fastClamp(this.bbox) );
@@ -581,10 +581,10 @@ export class Octree {
 
 			// -1 = not contained in this box, 
 			// -2 = point is located in between two, four, or eight octants on the boundary
-			if (octant < 0) {
-				console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
-				continue;
-			}
+			// if (octant < 0) {
+			// 	console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
+			// 	continue;
+			// }
 
 			let child = this.children[octant];
 			child.paint(box, label);
@@ -597,11 +597,46 @@ export class Octree {
 		}
 	}
 
+	// optimized for single voxel painting speed
+	paintVoxel (x:number,y:number,z:number, label: number) : void {
+		if (this.label === label) {
+			return;
+		}
+		else if (this.bbox.volume() === 1) {
+			this.children = null;
+			this.label = label;
+			return;
+		}
+
+		this.label = 0;
+
+		let center = this.bbox.center();
+
+		if (this.children === null) {
+			this.children = this.bbox.shatter8(center).map( (box) => new Octree(box) );
+		}
+		
+		let octant = (
+			  (((center.x - x) < 0)|0)
+			| ((((center.y - y) < 0)|0) << 1)
+			| ((((center.z - z) < 0)|0) << 2)
+		);
+
+		let child = this.children[octant];
+		child.paintVoxel(x,y,z, label);
+
+		// merge children when they all agree to prevent sprawl
+		if (this.areAllChildrenSame()) {
+			this.children = null;
+			this.label = label;
+		}
+	}
+
 	areAllChildrenSame () : boolean {
 		let all_same = true;
 		let first_label = this.children[0].label;
 
-		if (first_label === null) {
+		if (first_label === 0) {
 			return false;
 		}
 
@@ -618,18 +653,18 @@ export class Octree {
 	}
 
 	voxel (x: number, y: number, z: number) : number {
-		if (this.label !== null) {
+		if (this.label !== 0) {
 			return this.label;
 		}
 		else if (!this.children) {
-			return null;
+			return 0;
 		}
 
 		let octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
 
-		if (octant < 0) {
-			throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
-		}
+		// if (octant < 0) {
+		// 	throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
+		// }
 
 		return this.children[octant].voxel(x,y,z);
 	}

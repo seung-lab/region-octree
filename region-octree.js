@@ -80,13 +80,12 @@ var Bbox = (function () {
     Bbox.prototype.isPowerOfTwo = function () {
         return this.size3().isPowerOfTwo();
     };
-    // PERFORMANCE SENSITIVE
     Bbox.prototype.octant = function (point, center) {
         if (center === void 0) { center = null; }
         var container = this;
-        if (!container.contains(point)) {
-            return -1;
-        }
+        // if (!container.contains(point)) {
+        // 	return -1;
+        // }
         center = center || this.center();
         // Maybe not necessary for debugged code.
         // let abs = Math.abs;
@@ -268,9 +267,9 @@ var Bbox = (function () {
 exports.Bbox = Bbox;
 var Octree = (function () {
     function Octree(bbox) {
-        this.bbox = bbox.clone();
+        this.bbox = bbox;
         this.children = null;
-        this.label = null;
+        this.label = 0;
     }
     Octree.prototype.print = function () {
         console.log(this.toString());
@@ -401,11 +400,11 @@ var Octree = (function () {
         }
         return square;
     };
+    // --- PERFORMANCE SENSITIVE ---
     // Do the bboxes match? If yes, then delete all children
     // and set the label. 
     // Else, shatter box and paint each assigned subvolume
     // if a child doesn't exist, create one
-    // PERFORMANCE SENSITIVE
     Octree.prototype.paint = function (paintbox, label) {
         var _this = this;
         if (paintbox.equals(this.bbox)) {
@@ -420,10 +419,10 @@ var Octree = (function () {
         if (this.children === null) {
             this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
         }
-        this.label = null;
+        this.label = 0;
         var shatter;
         if (paintbox.volume() === 1) {
-            shatter = [paintbox.fastClamp(this.bbox)];
+            shatter = [paintbox];
         }
         else {
             shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
@@ -433,10 +432,10 @@ var Octree = (function () {
             var octant = this.bbox.octant(box.center(), center);
             // -1 = not contained in this box, 
             // -2 = point is located in between two, four, or eight octants on the boundary
-            if (octant < 0) {
-                console.warn("Octant " + octant + " was an error code for " + this.bbox + ", " + paintbox + ", " + center);
-                continue;
-            }
+            // if (octant < 0) {
+            // 	console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
+            // 	continue;
+            // }
             var child = this.children[octant];
             child.paint(box, label);
         }
@@ -446,10 +445,36 @@ var Octree = (function () {
             this.label = label;
         }
     };
+    // optimized for single voxel painting speed
+    Octree.prototype.paintVoxel = function (x, y, z, label) {
+        if (this.label === label) {
+            return;
+        }
+        else if (this.bbox.volume() === 1) {
+            this.children = null;
+            this.label = label;
+            return;
+        }
+        this.label = 0;
+        var center = this.bbox.center();
+        if (this.children === null) {
+            this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
+        }
+        var octant = ((((center.x - x) < 0) | 0)
+            | ((((center.y - y) < 0) | 0) << 1)
+            | ((((center.z - z) < 0) | 0) << 2));
+        var child = this.children[octant];
+        child.paintVoxel(x, y, z, label);
+        // merge children when they all agree to prevent sprawl
+        if (this.areAllChildrenSame()) {
+            this.children = null;
+            this.label = label;
+        }
+    };
     Octree.prototype.areAllChildrenSame = function () {
         var all_same = true;
         var first_label = this.children[0].label;
-        if (first_label === null) {
+        if (first_label === 0) {
             return false;
         }
         for (var i = 0; i < 8; i++) {
@@ -462,16 +487,16 @@ var Octree = (function () {
         return all_same;
     };
     Octree.prototype.voxel = function (x, y, z) {
-        if (this.label !== null) {
+        if (this.label !== 0) {
             return this.label;
         }
         else if (!this.children) {
-            return null;
+            return 0;
         }
         var octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
-        if (octant < 0) {
-            throw new Error("Octant " + octant + " was an error code for " + this.bbox + " @ " + x + ", " + y + ", " + z + ".");
-        }
+        // if (octant < 0) {
+        // 	throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
+        // }
         return this.children[octant].voxel(x, y, z);
     };
     // http://stackoverflow.com/questions/504030/javascript-endian-encoding
