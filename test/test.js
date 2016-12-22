@@ -276,8 +276,8 @@ describe('Octree', function () {
 		root.treesize().should.equal(1 + 8 + 8*8)
 	});
 
-	it('e2198 -- Color a 256^3 volume uniformly.', function () {
-		var size = 256;
+	it('e2198 -- Color a 16^3 volume uniformly.', function () {
+		var size = 16;
 		
 		var root = new Octree( Bbox.cube(size) );
 		

@@ -184,10 +184,10 @@ var Bbox = (function () {
             arr[1] = null;
         }
         if (arr[5])
-            _e = arr[5].split('z', chissel.z), arr[2] = _e[0], arr[4] = _e[1];
+            _e = arr[5].split('z', chissel.z), arr[2] = _e[0], arr[3] = _e[1];
         else {
             arr[2] = null;
-            arr[4] = null;
+            arr[3] = null;
         }
         if (arr[6])
             _f = arr[6].split('z', chissel.z), arr[4] = _f[0], arr[5] = _f[1];

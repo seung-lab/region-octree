@@ -268,10 +268,10 @@ export class Bbox {
 		}
 
 		if (arr[5]) // 5th
-			[ arr[2], arr[4] ] = arr[5].split('z', chissel.z);
+			[ arr[2], arr[3] ] = arr[5].split('z', chissel.z);
 		else {
 			arr[2] = null;
-			arr[4] = null;
+			arr[3] = null;
 		}
 		if (arr[6]) // 6th
 			[ arr[4], arr[5] ] = arr[6].split('z', chissel.z);
