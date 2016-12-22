@@ -545,7 +545,7 @@ export class Octree {
 		else if (this.bbox.volume() <= 1) {
 			return;
 		}
-		
+
 		let center = this.bbox.center();
 
 		if (this.children === null) {
@@ -553,7 +553,7 @@ export class Octree {
 		}
 
 		this.label = null;
-		let shatter = paintbox.shatter( center ).map( (box) => box.clamp(this.bbox) );
+		let shatter = paintbox.shatter( center ).map( (box) => box.fastClamp(this.bbox) );
 		
 		if (shatter.length === 8) {
 			for (let octant = 0; octant < 8; octant++) {

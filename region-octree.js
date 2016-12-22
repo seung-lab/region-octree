@@ -414,7 +414,7 @@ var Octree = (function () {
             this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
         }
         this.label = null;
-        var shatter = paintbox.shatter(center).map(function (box) { return box.clamp(_this.bbox); });
+        var shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
         if (shatter.length === 8) {
             for (var octant = 0; octant < 8; octant++) {
                 var box = shatter[octant];
