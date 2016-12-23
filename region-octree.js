@@ -266,237 +266,87 @@ var Bbox = (function () {
 }());
 exports.Bbox = Bbox;
 var Octree = (function () {
-    function Octree(bbox) {
-        this.bbox = bbox;
-        this.children = null;
-        this.label = 0;
+    function Octree(dimensions, bytes) {
+        if (bytes === void 0) { bytes = 2; }
+        this.root = new OctreeNode(new Bbox(Vec3.create(0, 0, 0), dimensions));
+        this.bytes = bytes;
     }
-    Octree.prototype.print = function () {
-        console.log(this.toString());
-        if (this.children) {
-            this.children.forEach(function (node) {
-                node.print();
-            });
-        }
-    };
-    // get number of nodes in the current subtree
-    Octree.prototype.treesize = function () {
-        var size = 1;
-        if (!this.children) {
-            return size;
-        }
-        this.children.forEach(function (node) {
-            if (node) {
-                size += node.treesize();
-            }
-        });
-        return size;
-    };
-    // find max depth of the current subtee
-    Octree.prototype.treedepth = function (depth) {
-        if (depth === void 0) { depth = 1; }
-        var node = this;
-        if (this.children === null) {
-            return depth;
-        }
-        var curdepth = depth;
-        node.children.forEach(function (node) {
-            curdepth = Math.max(curdepth, node.treedepth(depth + 1));
-        });
-        return curdepth;
-    };
-    /*
-    imageSlice (axis, index, bytes) : ImageData {
-        let _this = this;
-
-        let square = this.slice(axis, index, bytes);
-        let size3 = this.bbox.size3();
-
-        let sizes = {
-            x: [ size3.y, size3.z ],
-            y: [ size3.x, size3.z ],
-            z: [ size3.x, size3.y ],
+    Octree.prototype.imageSlice = function (axis, index) {
+        var _this = this;
+        var root = this.root, bytes = this.bytes;
+        var square = this.slice(axis, index);
+        var size3 = root.bbox.size3();
+        var sizes = {
+            x: [size3.y, size3.z],
+            y: [size3.x, size3.z],
+            z: [size3.x, size3.y]
         };
-
-        let size = sizes[axis];
-
+        var size = sizes[axis];
         // see https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
-        let imgdata = this.canvas_context.createImageData(size[0], size[1]);
-
-        let maskset = this.getRenderMaskSet();
-
-        const rmask = maskset.r,
-            gmask = maskset.g,
-            bmask = maskset.b,
-            amask = maskset.a;
-
+        var imgdata = this.canvas_context.createImageData(size[0], size[1]);
+        var maskset = this.getRenderMaskSet();
+        var rmask = maskset.r, gmask = maskset.g, bmask = maskset.b, amask = maskset.a;
         // if we break this for loop up by bytes, we can extract extra performance.
         // If we want to handle transparency efficiently, you'll want to break out the
         // 32 bit case so you can avoid an if statement.
-
         // you can also avoid doing the assignment for index 1 and 2 for 8 bit, and 2 for 16 bit
         // This code seemed more elegant to me though, so I won't prematurely optimize.
-
-        let data = imgdata.data;
-
-        let fixedalpha = bytes === 4 // no alpha channel w/ less than 4 bytes
+        var data = imgdata.data;
+        var fixedalpha = bytes === 4 // no alpha channel w/ less than 4 bytes
             ? 0x00000000
             : 0xffffffff;
-
-        let di = data.length - 4;
-        for (let si = square.length - 1; si >= 0; si--) {
+        var di = data.length - 4;
+        for (var si = square.length - 1; si >= 0; si--) {
             data[di + 0] = (square[si] & rmask);
             data[di + 1] = (square[si] & gmask) >>> 8;
             data[di + 2] = (square[si] & bmask) >>> 16;
             data[di + 3] = ((square[si] & amask) | fixedalpha) >>> 24; // can handle transparency specially if necessary
-                
             di -= 4;
         }
-
         return imgdata;
-    }
-
-    */
-    Octree.prototype.slice = function (axis, index, bytes) {
-        var _this = this;
+    };
+    Octree.prototype.slice = function (axis, index) {
+        var root = this.root;
         var faces = {
             x: ['y', 'z'],
             y: ['x', 'z'],
             z: ['x', 'y']
         };
         var face = faces[axis];
-        var center = _this.bbox.center();
+        var center = root.bbox.center();
         center[axis] = index;
-        if (!_this.bbox.containsInclusive(center)) {
+        if (!root.bbox.containsInclusive(center)) {
             throw new Error(index + ' is out of bounds.');
         }
-        var size = this.bbox.size3();
-        var ArrayType = this.arrayType(bytes);
+        var size = root.bbox.size3();
+        var ArrayType = this.arrayType();
         var square = new ArrayType(size[face[0]] * size[face[1]]);
         var i = square.length - 1;
         if (axis === 'x') {
-            for (var z = _this.bbox.max.z - 1; z >= 0; --z) {
-                for (var y = _this.bbox.max.y - 1; y >= 0; --y) {
-                    square[i] = _this.voxel(index, y, z);
+            for (var z = root.bbox.max.z - 1; z >= 0; --z) {
+                for (var y = root.bbox.max.y - 1; y >= 0; --y) {
+                    square[i] = root.voxel(index, y, z);
                     --i;
                 }
             }
         }
         else if (axis === 'y') {
-            for (var z = _this.bbox.max.z - 1; z >= 0; --z) {
-                for (var x = _this.bbox.max.x - 1; x >= 0; --x) {
-                    square[i] = _this.voxel(x, index, z);
+            for (var z = root.bbox.max.z - 1; z >= 0; --z) {
+                for (var x = root.bbox.max.x - 1; x >= 0; --x) {
+                    square[i] = root.voxel(x, index, z);
                     --i;
                 }
             }
         }
         else if (axis === 'z') {
-            for (var y = _this.bbox.max.y - 1; y >= 0; --y) {
-                for (var x = _this.bbox.max.x - 1; x >= 0; --x) {
-                    square[i] = _this.voxel(x, y, index);
+            for (var y = root.bbox.max.y - 1; y >= 0; --y) {
+                for (var x = root.bbox.max.x - 1; x >= 0; --x) {
+                    square[i] = root.voxel(x, y, index);
                     --i;
                 }
             }
         }
         return square;
-    };
-    // --- PERFORMANCE SENSITIVE ---
-    // Do the bboxes match? If yes, then delete all children
-    // and set the label. 
-    // Else, shatter box and paint each assigned subvolume
-    // if a child doesn't exist, create one
-    Octree.prototype.paint = function (paintbox, label) {
-        var _this = this;
-        if (paintbox.equals(this.bbox)) {
-            this.children = null;
-            this.label = label;
-            return;
-        }
-        else if (this.bbox.volume() <= 1) {
-            return;
-        }
-        var center = this.bbox.center();
-        if (this.children === null) {
-            this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
-        }
-        this.label = 0;
-        var shatter;
-        if (paintbox.volume() === 1) {
-            shatter = [paintbox];
-        }
-        else {
-            shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
-        }
-        for (var i = shatter.length - 1; i >= 0; i--) {
-            var box = shatter[i];
-            var octant = this.bbox.octant(box.center(), center);
-            // -1 = not contained in this box, 
-            // -2 = point is located in between two, four, or eight octants on the boundary
-            // if (octant < 0) {
-            // 	console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
-            // 	continue;
-            // }
-            var child = this.children[octant];
-            child.paint(box, label);
-        }
-        // merge children when they all agree to prevent sprawl
-        if (this.areAllChildrenSame()) {
-            this.children = null;
-            this.label = label;
-        }
-    };
-    // optimized for single voxel painting speed
-    Octree.prototype.paintVoxel = function (x, y, z, label) {
-        if (this.label === label) {
-            return;
-        }
-        else if (this.bbox.volume() === 1) {
-            this.children = null;
-            this.label = label;
-            return;
-        }
-        this.label = 0;
-        var center = this.bbox.center();
-        if (this.children === null) {
-            this.children = this.bbox.shatter8(center).map(function (box) { return new Octree(box); });
-        }
-        var octant = (((center.x < x) | 0)
-            | (((center.y < y) | 0) << 1)
-            | (((center.z < z) | 0) << 2));
-        var child = this.children[octant];
-        child.paintVoxel(x, y, z, label);
-        // merge children when they all agree to prevent sprawl
-        if (this.areAllChildrenSame()) {
-            this.children = null;
-            this.label = label;
-        }
-    };
-    Octree.prototype.areAllChildrenSame = function () {
-        var all_same = true;
-        var first_label = this.children[0].label;
-        if (first_label === 0) {
-            return false;
-        }
-        for (var i = 1; i < 8; i++) {
-            all_same = all_same && (first_label === this.children[i].label);
-            if (!all_same) {
-                break;
-            }
-        }
-        return all_same;
-    };
-    Octree.prototype.voxel = function (x, y, z) {
-        if (this.label !== 0) {
-            return this.label;
-        }
-        else if (!this.children) {
-            return 0;
-        }
-        var octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
-        // if (octant < 0) {
-        // 	throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
-        // }
-        return this.children[octant].voxel(x, y, z);
     };
     // http://stackoverflow.com/questions/504030/javascript-endian-encoding
     // http://stackoverflow.com/questions/19499500/canvas-getimagedata-for-optimal-performance-to-pull-out-all-data-or-one-at-a
@@ -531,24 +381,165 @@ var Octree = (function () {
         ];
         return bitmasks[this.isLittleEndian() ? 0 : 1];
     };
-    Octree.prototype.arrayType = function (bytes) {
+    Octree.prototype.arrayType = function () {
         var choices = {
             1: Uint8ClampedArray,
             2: Uint16Array,
             4: Uint32Array
         };
-        var ArrayType = choices[bytes];
+        var ArrayType = choices[this.bytes];
         if (ArrayType === undefined) {
-            throw new Error(bytes + ' is not a valid typed array byte count.');
+            throw new Error(this.bytes + ' is not a valid typed array byte count.');
         }
         return ArrayType;
-    };
-    Octree.prototype.toString = function () {
-        var isleaf = this.children
-            ? ""
-            : ", leaf";
-        return "Octree(" + this.label + ", " + this.bbox + isleaf + ")";
     };
     return Octree;
 }());
 exports.Octree = Octree;
+var OctreeNode = (function () {
+    function OctreeNode(bbox) {
+        this.bbox = bbox;
+        this.children = null;
+        this.label = 0;
+    }
+    OctreeNode.prototype.print = function () {
+        console.log(this.toString());
+        if (this.children) {
+            this.children.forEach(function (node) {
+                node.print();
+            });
+        }
+    };
+    // get number of nodes in the current subtree
+    OctreeNode.prototype.treesize = function () {
+        var size = 1;
+        if (!this.children) {
+            return size;
+        }
+        this.children.forEach(function (node) {
+            if (node) {
+                size += node.treesize();
+            }
+        });
+        return size;
+    };
+    // find max depth of the current subtee
+    OctreeNode.prototype.treedepth = function (depth) {
+        if (depth === void 0) { depth = 1; }
+        var node = this;
+        if (this.children === null) {
+            return depth;
+        }
+        var curdepth = depth;
+        node.children.forEach(function (node) {
+            curdepth = Math.max(curdepth, node.treedepth(depth + 1));
+        });
+        return curdepth;
+    };
+    // --- PERFORMANCE SENSITIVE ---
+    // Do the bboxes match? If yes, then delete all children
+    // and set the label. 
+    // Else, shatter box and paint each assigned subvolume
+    // if a child doesn't exist, create one
+    OctreeNode.prototype.paint = function (paintbox, label) {
+        var _this = this;
+        if (paintbox.equals(this.bbox)) {
+            this.children = null;
+            this.label = label;
+            return;
+        }
+        else if (this.bbox.volume() <= 1) {
+            return;
+        }
+        var center = this.bbox.center();
+        if (this.children === null) {
+            this.children = this.bbox.shatter8(center).map(function (box) { return new OctreeNode(box); });
+        }
+        this.label = 0;
+        var shatter;
+        if (paintbox.volume() === 1) {
+            shatter = [paintbox];
+        }
+        else {
+            shatter = paintbox.shatter(center).map(function (box) { return box.fastClamp(_this.bbox); });
+        }
+        for (var i = shatter.length - 1; i >= 0; i--) {
+            var box = shatter[i];
+            var octant = this.bbox.octant(box.center(), center);
+            // -1 = not contained in this box, 
+            // -2 = point is located in between two, four, or eight octants on the boundary
+            // if (octant < 0) {
+            // 	console.warn(`Octant ${octant} was an error code for ${this.bbox}, ${paintbox}, ${center}`);
+            // 	continue;
+            // }
+            var child = this.children[octant];
+            child.paint(box, label);
+        }
+        // merge children when they all agree to prevent sprawl
+        if (this.areAllChildrenSame()) {
+            this.children = null;
+            this.label = label;
+        }
+    };
+    // optimized for single voxel painting speed
+    OctreeNode.prototype.paintVoxel = function (x, y, z, label) {
+        if (this.label === label) {
+            return;
+        }
+        else if (this.bbox.volume() === 1) {
+            this.children = null;
+            this.label = label;
+            return;
+        }
+        this.label = 0;
+        var center = this.bbox.center();
+        if (this.children === null) {
+            this.children = this.bbox.shatter8(center).map(function (box) { return new OctreeNode(box); });
+        }
+        var octant = (((center.x < x) | 0)
+            | (((center.y < y) | 0) << 1)
+            | (((center.z < z) | 0) << 2));
+        var child = this.children[octant];
+        child.paintVoxel(x, y, z, label);
+        // merge children when they all agree to prevent sprawl
+        if (this.areAllChildrenSame()) {
+            this.children = null;
+            this.label = label;
+        }
+    };
+    OctreeNode.prototype.areAllChildrenSame = function () {
+        var all_same = true;
+        var first_label = this.children[0].label;
+        if (first_label === 0) {
+            return false;
+        }
+        for (var i = 1; i < 8; i++) {
+            all_same = all_same && (first_label === this.children[i].label);
+            if (!all_same) {
+                break;
+            }
+        }
+        return all_same;
+    };
+    OctreeNode.prototype.voxel = function (x, y, z) {
+        if (this.label !== 0) {
+            return this.label;
+        }
+        else if (!this.children) {
+            return 0;
+        }
+        var octant = this.bbox.octant(Vec3.create(x + 0.5, y + 0.5, z + 0.5));
+        // if (octant < 0) {
+        // 	throw new Error(`Octant ${octant} was an error code for ${this.bbox} @ ${x}, ${y}, ${z}.`);
+        // }
+        return this.children[octant].voxel(x, y, z);
+    };
+    OctreeNode.prototype.toString = function () {
+        var isleaf = this.children
+            ? ""
+            : ", leaf";
+        return "OctreeNode(" + this.label + ", " + this.bbox + isleaf + ")";
+    };
+    return OctreeNode;
+}());
+exports.OctreeNode = OctreeNode;

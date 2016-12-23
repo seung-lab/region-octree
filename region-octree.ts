@@ -386,9 +386,179 @@ export class Bbox {
 }
 
 export class Octree {
+	root: OctreeNode;
+	bytes: number;
+
+	constructor (dimensions: Vec3, bytes:number = 2) {
+		this.root = new OctreeNode(
+			new Bbox(Vec3.create(0,0,0), dimensions)
+		);
+		this.bytes = bytes;
+	}
+
+	imageSlice (axis, index) : ImageData {
+		let _this = this;
+
+		let root = this.root,
+			bytes = this.bytes;
+
+		let square = this.slice(axis, index);
+		let size3 = root.bbox.size3();
+
+		let sizes = {
+			x: [ size3.y, size3.z ],
+			y: [ size3.x, size3.z ],
+			z: [ size3.x, size3.y ],
+		};
+
+		let size = sizes[axis];
+
+		// see https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
+		let imgdata = this.canvas_context.createImageData(size[0], size[1]);
+
+		let maskset = this.getRenderMaskSet();
+
+		const rmask = maskset.r,
+			gmask = maskset.g,
+			bmask = maskset.b,
+			amask = maskset.a;
+
+		// if we break this for loop up by bytes, we can extract extra performance.
+		// If we want to handle transparency efficiently, you'll want to break out the
+		// 32 bit case so you can avoid an if statement.
+
+		// you can also avoid doing the assignment for index 1 and 2 for 8 bit, and 2 for 16 bit
+		// This code seemed more elegant to me though, so I won't prematurely optimize.
+
+		let data = imgdata.data;
+
+		let fixedalpha = bytes === 4 // no alpha channel w/ less than 4 bytes
+			? 0x00000000 
+			: 0xffffffff;
+
+		let di = data.length - 4;
+		for (let si = square.length - 1; si >= 0; si--) {
+			data[di + 0] = (square[si] & rmask); 
+			data[di + 1] = (square[si] & gmask) >>> 8;
+			data[di + 2] = (square[si] & bmask) >>> 16;
+			data[di + 3] = ((square[si] & amask) | fixedalpha) >>> 24; // can handle transparency specially if necessary
+				
+			di -= 4;
+		}
+
+		return imgdata;
+	}
+
+	slice<T> (axis: string, index: number) : T[] {
+		let root = this.root;
+
+		let faces = {
+			x: [ 'y', 'z' ],
+			y: [ 'x', 'z' ],
+			z: [ 'x', 'y' ],
+		};
+		let face = faces[axis];
+
+		let center = root.bbox.center();
+		center[axis] = index;
+
+		if (!root.bbox.containsInclusive(center)) {
+			throw new Error(index + ' is out of bounds.');
+		}
+
+		let size = root.bbox.size3();
+
+		let ArrayType = this.arrayType();
+		let square = new ArrayType(size[face[0]] * size[face[1]]);
+
+		let i = square.length - 1;
+		if (axis === 'x') {
+			for (let z = root.bbox.max.z - 1; z >= 0; --z) {
+				for (let y = root.bbox.max.y - 1; y >= 0; --y) {
+					square[i] = root.voxel(index, y, z);
+					--i;
+				}
+			}
+		}
+		else if (axis === 'y') {
+			for (let z = root.bbox.max.z - 1; z >= 0; --z) {
+				for (let x = root.bbox.max.x - 1; x >= 0; --x) { 
+					square[i] = root.voxel(x, index, z);
+					--i;
+				}
+			}
+		}
+		else if (axis === 'z') {
+			for (let y = root.bbox.max.y - 1; y >= 0; --y) {
+				for (let x = root.bbox.max.x - 1; x >= 0; --x) { 
+					square[i] = root.voxel(x, y, index);
+					--i;
+				}
+			}
+		}
+
+		return square;
+	}
+
+	// http://stackoverflow.com/questions/504030/javascript-endian-encoding
+	// http://stackoverflow.com/questions/19499500/canvas-getimagedata-for-optimal-performance-to-pull-out-all-data-or-one-at-a
+	isLittleEndian () : boolean {
+		var arr32 = new Uint32Array(1);
+		var arr8 = new Uint8Array(arr32.buffer);
+		arr32[0] = 255;
+
+		if (arr8[0] === 255) {
+			this.isLittleEndian = () => true;
+		}
+		else {
+			this.isLittleEndian = () => false;	
+		}
+
+		return this.isLittleEndian();
+	}
+
+	// For internal use, return the right bitmask for rgba image slicing
+	// depending on CPU endianess.
+	getRenderMaskSet () : RGBA {
+		let bitmasks : RGBA[] = [
+			{ // little endian, most architectures
+				r: 0x000000ff,
+				g: 0x0000ff00,
+				b: 0x00ff0000,
+				a: 0xff000000,
+			},
+			{ // big endian, mostly ARM and some specialized equipment
+				r: 0xff000000,
+				g: 0x00ff0000,
+				b: 0x0000ff00,
+				a: 0x000000ff,
+			},
+		];
+
+		return bitmasks[this.isLittleEndian() ? 0 : 1];
+	}
+
+	arrayType () : any {
+		let choices = {
+			1: Uint8ClampedArray,
+			2: Uint16Array,
+			4: Uint32Array,
+		};
+
+		let ArrayType = choices[this.bytes];
+
+		if (ArrayType === undefined) {
+			throw new Error(this.bytes + ' is not a valid typed array byte count.');
+		}
+
+		return ArrayType;
+	}
+}
+
+export class OctreeNode {
 	label: number;
 	bbox: Bbox;
-	children: Octree[];
+	children: OctreeNode[];
 
 	constructor(bbox: Bbox) {
 		this.bbox = bbox;
@@ -439,109 +609,6 @@ export class Octree {
 		return curdepth;
 	}
 
-	/* 
-	imageSlice (axis, index, bytes) : ImageData {
-		let _this = this;
-
-		let square = this.slice(axis, index, bytes);
-		let size3 = this.bbox.size3();
-
-		let sizes = {
-			x: [ size3.y, size3.z ],
-			y: [ size3.x, size3.z ],
-			z: [ size3.x, size3.y ],
-		};
-
-		let size = sizes[axis];
-
-		// see https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas
-		let imgdata = this.canvas_context.createImageData(size[0], size[1]);
-
-		let maskset = this.getRenderMaskSet();
-
-		const rmask = maskset.r,
-			gmask = maskset.g,
-			bmask = maskset.b,
-			amask = maskset.a;
-
-		// if we break this for loop up by bytes, we can extract extra performance.
-		// If we want to handle transparency efficiently, you'll want to break out the
-		// 32 bit case so you can avoid an if statement.
-
-		// you can also avoid doing the assignment for index 1 and 2 for 8 bit, and 2 for 16 bit
-		// This code seemed more elegant to me though, so I won't prematurely optimize.
-
-		let data = imgdata.data;
-
-		let fixedalpha = bytes === 4 // no alpha channel w/ less than 4 bytes
-			? 0x00000000 
-			: 0xffffffff;
-
-		let di = data.length - 4;
-		for (let si = square.length - 1; si >= 0; si--) {
-			data[di + 0] = (square[si] & rmask); 
-			data[di + 1] = (square[si] & gmask) >>> 8;
-			data[di + 2] = (square[si] & bmask) >>> 16;
-			data[di + 3] = ((square[si] & amask) | fixedalpha) >>> 24; // can handle transparency specially if necessary
-				
-			di -= 4;
-		}
-
-		return imgdata;
-	}
-
-	*/
-
-	slice<T> (axis: string, index: number, bytes: number) : T[] {
-		let _this = this;
-		let faces = {
-			x: [ 'y', 'z' ],
-			y: [ 'x', 'z' ],
-			z: [ 'x', 'y' ],
-		};
-		let face = faces[axis];
-
-		let center = _this.bbox.center();
-		center[axis] = index;
-
-		if (!_this.bbox.containsInclusive(center)) {
-			throw new Error(index + ' is out of bounds.');
-		}
-
-		let size = this.bbox.size3();
-
-		let ArrayType = this.arrayType(bytes);
-		let square = new ArrayType(size[face[0]] * size[face[1]]);
-
-		let i = square.length - 1;
-		if (axis === 'x') {
-			for (let z = _this.bbox.max.z - 1; z >= 0; --z) {
-				for (let y = _this.bbox.max.y - 1; y >= 0; --y) {
-					square[i] = _this.voxel(index, y, z);
-					--i;
-				}
-			}
-		}
-		else if (axis === 'y') {
-			for (let z = _this.bbox.max.z - 1; z >= 0; --z) {
-				for (let x = _this.bbox.max.x - 1; x >= 0; --x) { 
-					square[i] = _this.voxel(x, index, z);
-					--i;
-				}
-			}
-		}
-		else if (axis === 'z') {
-			for (let y = _this.bbox.max.y - 1; y >= 0; --y) {
-				for (let x = _this.bbox.max.x - 1; x >= 0; --x) { 
-					square[i] = _this.voxel(x, y, index);
-					--i;
-				}
-			}
-		}
-
-		return square;
-	}
-
 	// --- PERFORMANCE SENSITIVE ---
 
 	// Do the bboxes match? If yes, then delete all children
@@ -561,7 +628,7 @@ export class Octree {
 		let center = this.bbox.center();
 
 		if (this.children === null) {
-			this.children = this.bbox.shatter8(center).map( (box) => new Octree(box) );
+			this.children = this.bbox.shatter8(center).map( (box) => new OctreeNode(box) );
 		}
 
 		this.label = 0;
@@ -613,7 +680,7 @@ export class Octree {
 		let center = this.bbox.center();
 
 		if (this.children === null) {
-			this.children = this.bbox.shatter8(center).map( (box) => new Octree(box) );
+			this.children = this.bbox.shatter8(center).map( (box) => new OctreeNode(box) );
 		}
 		
 		let octant = (
@@ -668,65 +735,11 @@ export class Octree {
 		return this.children[octant].voxel(x,y,z);
 	}
 
-	// http://stackoverflow.com/questions/504030/javascript-endian-encoding
-	// http://stackoverflow.com/questions/19499500/canvas-getimagedata-for-optimal-performance-to-pull-out-all-data-or-one-at-a
-	isLittleEndian () : boolean {
-		var arr32 = new Uint32Array(1);
-		var arr8 = new Uint8Array(arr32.buffer);
-		arr32[0] = 255;
-
-		if (arr8[0] === 255) {
-			this.isLittleEndian = () => true;
-		}
-		else {
-			this.isLittleEndian = () => false;	
-		}
-
-		return this.isLittleEndian();
-	}
-
-	// For internal use, return the right bitmask for rgba image slicing
-	// depending on CPU endianess.
-	getRenderMaskSet () : RGBA {
-		let bitmasks : RGBA[] = [
-			{ // little endian, most architectures
-				r: 0x000000ff,
-				g: 0x0000ff00,
-				b: 0x00ff0000,
-				a: 0xff000000,
-			},
-			{ // big endian, mostly ARM and some specialized equipment
-				r: 0xff000000,
-				g: 0x00ff0000,
-				b: 0x0000ff00,
-				a: 0x000000ff,
-			},
-		];
-
-		return bitmasks[this.isLittleEndian() ? 0 : 1];
-	}
-
-	arrayType (bytes) {
-		let choices = {
-			1: Uint8ClampedArray,
-			2: Uint16Array,
-			4: Uint32Array,
-		};
-
-		let ArrayType = choices[bytes];
-
-		if (ArrayType === undefined) {
-			throw new Error(bytes + ' is not a valid typed array byte count.');
-		}
-
-		return ArrayType;
-	}
-
 	toString () : string {
 		let isleaf = this.children 
 			? ""
 			: ", leaf";
-		return `Octree(${this.label}, ${this.bbox}${isleaf})`;
+		return `OctreeNode(${this.label}, ${this.bbox}${isleaf})`;
 	}
 }
 

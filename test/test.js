@@ -4,6 +4,7 @@ var regionOctree = require('../region-octree.js');
 var Bbox = regionOctree.Bbox;
 var Vec3 = regionOctree.Vec3;
 var Octree = regionOctree.Octree;
+var OctreeNode = regionOctree.OctreeNode;
 
 describe('Bbox', function () {
 	it('Should correctly return a centerpoint.', function () {
@@ -125,13 +126,13 @@ describe('Octree', function () {
 	it('Treesize Computed Correctly', function () {
 		var box1 = Bbox.cube(1);
 		var box2 = Bbox.cube(2);
-		var root = new Octree(box2);
+		var root = new OctreeNode(box2);
 
 		root.treesize().should.equal(1);
 
 		root.children = new Array(8);
-		root.children[0] = new Octree(box1);
-		root.children[4] = new Octree(Bbox.create(0,0,1, 1,1,2));
+		root.children[0] = new OctreeNode(box1);
+		root.children[4] = new OctreeNode(Bbox.create(0,0,1, 1,1,2));
 
 		root.treesize().should.equal(3);
 	});
@@ -139,18 +140,18 @@ describe('Octree', function () {
 	it('Treedepth Computed Correctly', function () {
 		var box1 = Bbox.cube(1);
 		var box2 = Bbox.cube(2);
-		var root = new Octree(box2);
+		var root = new OctreeNode(box2);
 
 		root.treedepth().should.equal(1);
 
 		root.children = new Array(8);
-		root.children[0] = new Octree(box1);
-		root.children[4] = new Octree(Bbox.create(0,0,1, 1,1,2));
+		root.children[0] = new OctreeNode(box1);
+		root.children[4] = new OctreeNode(Bbox.create(0,0,1, 1,1,2));
 
 		root.treedepth().should.equal(2);
 
 		root.children[0].children = new Array(8);
-		root.children[0].children[0] = new Octree(Bbox.create(0,0,0.5, 0.5,0.5,1));
+		root.children[0].children[0] = new OctreeNode(Bbox.create(0,0,0.5, 0.5,0.5,1));
 
 		root.treedepth().should.equal(3);
 	});
@@ -158,7 +159,7 @@ describe('Octree', function () {
 	it('Can paint a 1 voxel tree.', function () {
 		var box1 = Bbox.cube(1);
 		var box2 = Bbox.cube(2);
-		var root = new Octree( box1 );
+		var root = new OctreeNode( box1 );
 		root.paint(box1, 666);
 
 		root.treesize().should.equal(1);
@@ -169,7 +170,7 @@ describe('Octree', function () {
 	it('Can paint an octant of a 2x2x2 volume.', function () {
 		var box1 = Bbox.cube(1);
 		var box2 = Bbox.cube(2);
-		var root = new Octree( box2 );
+		var root = new OctreeNode( box2 );
 		root.paint(box1, 666);
 
 		root.treesize().should.equal(1 + 8);
@@ -185,7 +186,7 @@ describe('Octree', function () {
 
 	it('Can paint a pixel of a 4x4x4 volume.', function () {
 		var box1 = Bbox.cube(1);
-		var root = new Octree( Bbox.create(0,0,0, 4,4,4) );
+		var root = new OctreeNode( Bbox.create(0,0,0, 4,4,4) );
 		root.paint(box1, 666);
 
 		root.treesize().should.equal(1 + 8 + 8);
@@ -204,7 +205,7 @@ describe('Octree', function () {
 	});
 
 	it('Can paint center volume of a 4x4x4 volume.', function () {
-		var root = new Octree( Bbox.create(0,0,0, 4,4,4) );
+		var root = new OctreeNode( Bbox.create(0,0,0, 4,4,4) );
 		root.paint(Bbox.create(1,1,1, 2,2,2), 666);
 
 		root.treesize().should.equal(1 + 8 + 8);
@@ -232,7 +233,7 @@ describe('Octree', function () {
 
 	it('Can look up a voxel value in a 4^3', function () {
 		var size = 4;
-		var root = new Octree( Bbox.cube(size) );
+		var root = new OctreeNode( Bbox.cube(size) );
 
 		function validate (root, x,y,z) {
 			root.voxel(x,y,z).should.equal(label(x,y,z));
@@ -253,7 +254,7 @@ describe('Octree', function () {
 	it('Can paint a z-line that crosses boundaries.', function () {
 		var size = 8;
 
-		var root = new Octree( Bbox.cube(size) );
+		var root = new OctreeNode( Bbox.cube(size) );
 		root.paint(Bbox.create(2,2,2, 3,3,5), 666);
 
 		root.treedepth().should.equal(4);
@@ -269,7 +270,7 @@ describe('Octree', function () {
 		var sm = size / 4; 
 		var lg = 3 * size / 4;
 
-		var root = new Octree( Bbox.cube(size) );
+		var root = new OctreeNode( Bbox.cube(size) );
 		root.paint(Bbox.create(sm,sm,sm, lg,lg,lg), 666);
 
 		root.treedepth().should.equal(3);
@@ -279,7 +280,7 @@ describe('Octree', function () {
 	it('e2198 -- Color a 16^3 volume uniformly.', function () {
 		var size = 64;
 		
-		var root = new Octree( Bbox.cube(size) );
+		var root = new OctreeNode( Bbox.cube(size) );
 		
 		forxyz(size, (x,y,z) => {
 			root.paintVoxel(x + 0.5, y + 0.5, z + 0.5, 666);
@@ -291,54 +292,54 @@ describe('Octree', function () {
 
 	it('Retrieves slices correctly', function () {
 		var size = 2;
-		var root = new Octree( Bbox.cube(size) );
+		var tree = new Octree( Vec3.create(size,size,size), 4 );
 
 		// paint
 		forxyz(size, (x,y,z) => {
 			var vx = voxel(new Vec3(x,y,z));
-			root.paint(vx, label(x, y, z));
+			tree.root.paint(vx, label(x, y, z));
 		});
 
 		function validate (sq, x,y, val) {
 			sq[x + size * y].should.equal(val);
 		}
 
-		var square = root.slice('z', 0, 4);
+		var square = tree.slice('z', 0, 4);
 
 		validate(square, 0,0, label(0,0,0));
 		validate(square, 1,0, label(1,0,0));
 		validate(square, 0,1, label(0,1,0));
 		validate(square, 1,1, label(1,1,0));
 
-		square = root.slice('z', 1, 4);
+		square = tree.slice('z', 1, 4);
 
 		validate(square, 0,0, label(0,0,1));
 		validate(square, 1,0, label(1,0,1));
 		validate(square, 0,1, label(0,1,1));
 		validate(square, 1,1, label(1,1,1));
 
-		square = root.slice('y', 0, 4);
+		square = tree.slice('y', 0, 4);
 
 		validate(square, 0,0, label(0,0,0));
 		validate(square, 1,0, label(1,0,0));
 		validate(square, 0,1, label(0,0,1));
 		validate(square, 1,1, label(1,0,1));
 
-		square = root.slice('y', 1, 4);
+		square = tree.slice('y', 1, 4);
 
 		validate(square, 0,0, label(0,1,0));
 		validate(square, 1,0, label(1,1,0));
 		validate(square, 0,1, label(0,1,1));
 		validate(square, 1,1, label(1,1,1));
 
-		square = root.slice('x', 0, 4);
+		square = tree.slice('x', 0, 4);
 
 		validate(square, 0,0, label(0,0,0));
 		validate(square, 1,0, label(0,1,0));
 		validate(square, 0,1, label(0,0,1));
 		validate(square, 1,1, label(0,1,1));
 
-		square = root.slice('x', 1, 4);
+		square = tree.slice('x', 1, 4);
 
 		validate(square, 0,0, label(1,0,0));
 		validate(square, 1,0, label(1,1,0));
