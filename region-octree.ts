@@ -388,12 +388,46 @@ export class Bbox {
 export class Octree {
 	root: OctreeNode;
 	bytes: number;
+	canvas_context: any;
 
 	constructor (dimensions: Vec3, bytes:number = 2) {
 		this.root = new OctreeNode(
 			new Bbox(Vec3.create(0,0,0), dimensions)
 		);
 		this.bytes = bytes;
+		this.canvas_context = this.createImageContext();
+	}
+
+	// for internal use, makes a canvas for blitting images to
+	createImageContext () : any {
+		let canvas;
+
+		// Are we running in node.js or a browser?
+		if (typeof module !== 'undefined' && module.exports) {
+			console.info("Faking createImageData for testing.");
+
+			canvas = {
+				width: 1, 
+				height: 1,
+				getContext: function (type) {
+					return {
+						createImageData: function (width, height) {
+							return {
+								data: new Uint8ClampedArray(width * height * 4),
+							};
+						}
+					}
+				}
+			}
+		}
+		else {
+			canvas = document.createElement('canvas'); // the real logic
+		}
+		
+		canvas.width = 1;
+		canvas.height = 1;
+
+		return canvas.getContext('2d'); // used for accelerating XY plane image insertions
 	}
 
 	imageSlice (axis, index) : ImageData {

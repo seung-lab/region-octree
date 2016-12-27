@@ -270,7 +270,34 @@ var Octree = (function () {
         if (bytes === void 0) { bytes = 2; }
         this.root = new OctreeNode(new Bbox(Vec3.create(0, 0, 0), dimensions));
         this.bytes = bytes;
+        this.canvas_context = this.createImageContext();
     }
+    // for internal use, makes a canvas for blitting images to
+    Octree.prototype.createImageContext = function () {
+        var canvas;
+        if (typeof module !== 'undefined' && module.exports) {
+            console.info("Faking createImageData for testing.");
+            canvas = {
+                width: 1,
+                height: 1,
+                getContext: function (type) {
+                    return {
+                        createImageData: function (width, height) {
+                            return {
+                                data: new Uint8ClampedArray(width * height * 4)
+                            };
+                        }
+                    };
+                }
+            };
+        }
+        else {
+            canvas = document.createElement('canvas');
+        }
+        canvas.width = 1;
+        canvas.height = 1;
+        return canvas.getContext('2d'); // used for accelerating XY plane image insertions
+    };
     Octree.prototype.imageSlice = function (axis, index) {
         var _this = this;
         var root = this.root, bytes = this.bytes;
