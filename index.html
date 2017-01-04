@@ -1,0 +1,184 @@
+<html>
+	<head>
+		<title>EXPERIMENTAL - Region Octree Render Test</title>
+		<script src="./node_modules/jquery/dist/jquery.min.js"></script>
+		<script src="./node_modules/lzma/bin/lzma.js"></script>
+		<script src="./region-octree.js"></script>
+
+		<style>
+			html {
+				overflow: hidden;
+			}
+
+			canvas {
+				border: 1px dotted blue;
+			}
+
+			img {
+				margin: 1px;
+			}
+		</style>
+
+		<script>
+			var AXIS = 'z';
+			var SLICE = {
+				x: 1,
+				y: 1,
+				z: 1,
+			};
+
+			var _needsrender = true;
+
+			$(document).ready(function () {
+				var size = {
+					x: 256,
+					y: 256,
+					z: 256,
+				};
+
+				window.vol = new Volume({ 
+					task_id: 332,
+					channel: new DataCube({ 
+						bytes: 1,
+						size: size,
+					}), 
+					segmentation: new DataCube({ 
+						bytes: 2,
+						size: size,
+					}), 
+				});
+
+				var vol = window.vol;
+
+				window.channelctx = $('#channel')[0].getContext('2d');
+				window.segctx = $('#segmentation')[0].getContext('2d');
+
+				var progress = setInterval(function () {
+					render();
+				}, 200);
+
+				vol.load().always(function () {
+					clearInterval(progress);
+					render();
+
+					// Cover gap between finish requests and 
+					// decoding images.
+					setTimeout(function () {
+						render();
+					}, 250);
+				});
+
+
+				var clip_id = Math.round((Math.random() * 7) + 1); // 1, 2, 3, 4
+				var clip = new Audio("./audio/datacube" + clip_id + ".ogg");
+				clip.preload = true;
+
+				$(clip).one('canplaythrough', function () {
+					clip.play();
+				});
+			
+				$('#channel').on('click', function (e) {
+					var x = e.offsetX / $(this).innerWidth(), 
+						y = e.offsetY / $(this).innerHeight();
+
+					vol.selectSegment(AXIS, SLICE[AXIS], x, y);
+					render();
+				});
+			});
+
+			$(document).on('wheel', function (e) {
+				var delta = clamp(e.originalEvent.deltaY, -1, 1);
+				delta = Math.round(delta);
+
+				SLICE[AXIS] += delta;
+				SLICE[AXIS] = clamp(SLICE[AXIS], 0, 127);
+
+				render();
+			});
+
+			var AXES = ['z', 'y', 'x'];
+
+			$(document).on('keyup', function (evt) {
+				var delta = 0;
+				if (evt.keyCode === 'A'.charCodeAt(0)) {
+					delta = 2;
+				}
+				else if (evt.keyCode === 'D'.charCodeAt(0)) {
+					delta = 1;
+				}
+
+				var index = (AXES.indexOf(AXIS) + delta) % AXES.length;
+				AXIS = AXES[index];
+
+				render();
+			});
+
+			function saveStack () {
+				var canvas = document.createElement('canvas');
+				canvas.width = 256;
+				canvas.height = 256;
+				var ctx = canvas.getContext('2d');
+
+				function genimg (i) {
+					if (i >= 256) {
+						return;
+					}
+
+					var cimg = new Image(256, 256);
+					//var simg = new Image(256, 256);
+					vol.segmentation.renderImageSlice(ctx, 'z', i);
+
+					canvas.toBlob(function (blob) {
+					  saveAs(blob, i + ".png");
+					  genimg(i+1);
+					});
+				}
+
+				genimg(0);
+			}
+
+			function render () {
+				_needsrender = true;
+			}
+
+			function hardRender () {
+				vol.renderChannelSlice(window.channelctx, AXIS, SLICE[AXIS]);
+				vol.renderSegmentationSlice(window.segctx, AXIS, SLICE[AXIS]);
+
+				$('#axis').text(AXIS);
+				$('#slice').text(SLICE[AXIS]);
+
+				var progress = Math.round(vol.loadingProgress() * 100);
+				$('#loading').text(progress + '%');
+
+
+				_needsrender = false;
+			}
+
+			function clamp (val, min, max) {
+				return Math.min(Math.max(val, min), max);
+			}
+
+			requestAnimationFrame(function loop () {
+				if (_needsrender) {
+					hardRender();
+				}
+
+				requestAnimationFrame(loop);
+			});
+
+		</script>
+	</head>
+	<body>
+		<p>AXIS: <span id="axis"></span></p>
+		<p>SLICE: <span id="slice"></span></p>
+		CHANNEL<br>
+		<canvas id="channel" width="256" height="256"></canvas>
+		<br>
+		SEGMENTATION<br>
+		<canvas id="segmentation" width="256" height="256"></canvas>
+		<p>LOADING: <span id="loading"></span></p>
+
+		<div id="images"></div>
+	</body>
+</html>
