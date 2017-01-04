@@ -123,6 +123,19 @@ describe('Bbox', function () {
 });
 
 describe('Octree', function () {
+	it('Rejects non-power of two dimensions', function () {
+		var potfunctor = (function (size) { 
+			return () => new Octree(Vec3.create(size,size,size));
+		});
+
+		potfunctor(1).should.not.throw();
+		potfunctor(2).should.not.throw();
+		potfunctor(3).should.throw();
+		potfunctor(4).should.not.throw();
+		potfunctor(5).should.throw();
+		potfunctor(6).should.throw();
+	});
+
 	it('Treesize Computed Correctly', function () {
 		var box1 = Bbox.cube(1);
 		var box2 = Bbox.cube(2);
@@ -277,7 +290,7 @@ describe('Octree', function () {
 		root.treesize().should.equal(1 + 8 + 8*8)
 	});
 
-	it('e2198 -- Color a 16^3 volume uniformly.', function () {
+	it('e2198 -- Color a 64^3 volume uniformly.', function () {
 		var size = 64;
 		
 		var root = new OctreeNode( Bbox.cube(size) );

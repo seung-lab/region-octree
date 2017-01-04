@@ -391,6 +391,10 @@ export class Octree {
 	canvas_context: any;
 
 	constructor (dimensions: Vec3, bytes:number = 2) {
+		if (!dimensions.isPowerOfTwo()) {
+			throw new Error(`${dimensions} is not a power of two.`);
+		}
+
 		this.root = new OctreeNode(
 			new Bbox(Vec3.create(0,0,0), dimensions)
 		);
@@ -532,6 +536,14 @@ export class Octree {
 		}
 
 		return square;
+	}
+
+	serialize () {
+
+	}
+
+	deserialize () {
+
 	}
 
 	// http://stackoverflow.com/questions/504030/javascript-endian-encoding

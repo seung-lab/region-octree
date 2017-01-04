@@ -268,6 +268,9 @@ exports.Bbox = Bbox;
 var Octree = (function () {
     function Octree(dimensions, bytes) {
         if (bytes === void 0) { bytes = 2; }
+        if (!dimensions.isPowerOfTwo()) {
+            throw new Error(dimensions + " is not a power of two.");
+        }
         this.root = new OctreeNode(new Bbox(Vec3.create(0, 0, 0), dimensions));
         this.bytes = bytes;
         this.canvas_context = this.createImageContext();
@@ -275,6 +278,7 @@ var Octree = (function () {
     // for internal use, makes a canvas for blitting images to
     Octree.prototype.createImageContext = function () {
         var canvas;
+        // Are we running in node.js or a browser?
         if (typeof module !== 'undefined' && module.exports) {
             console.info("Faking createImageData for testing.");
             canvas = {
@@ -292,7 +296,7 @@ var Octree = (function () {
             };
         }
         else {
-            canvas = document.createElement('canvas');
+            canvas = document.createElement('canvas'); // the real logic
         }
         canvas.width = 1;
         canvas.height = 1;
@@ -374,6 +378,10 @@ var Octree = (function () {
             }
         }
         return square;
+    };
+    Octree.prototype.serialize = function () {
+    };
+    Octree.prototype.deserialize = function () {
     };
     // http://stackoverflow.com/questions/504030/javascript-endian-encoding
     // http://stackoverflow.com/questions/19499500/canvas-getimagedata-for-optimal-performance-to-pull-out-all-data-or-one-at-a
