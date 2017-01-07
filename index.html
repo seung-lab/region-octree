@@ -115,7 +115,8 @@
 
 				xhr.promise.then((arraybuf) => {
 					var mylzma = new LZMA("./lib/lzma_worker.js");
-					mylzma.decompress(arraybuf, function (data) {
+					var wow = new Uint8Array(arraybuf);
+					mylzma.decompress(wow, function (data) {
 						var segmentation_array = new Uint16Array(data);
 						console.log("finished!", segmentation_array.length);
 					}, 
