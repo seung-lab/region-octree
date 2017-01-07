@@ -7,7 +7,7 @@
 		</script>
 
 		<script src="./lib/jquery.min.js"></script>
-		<script src="./lib/lzma-min.js"></script>
+		<script src="./lib/lzma.js"></script>
 		<script src="./lib/jquery.binaryrequest.js"></script>
 		<script src="./region-octree.js"></script>
 
@@ -114,7 +114,7 @@
 				var xhr = $.binaryGet("./test/256x256x256-segmentation.lzma");
 
 				xhr.promise.then((arraybuf) => {
-					var lzma = new LZMA("./lib/lzma_worker-min.js");
+					var lzma = new LZMA("./lib/lzma_worker.js");
 					lzma.decompress(arraybuf, function (data) {
 						var segmentation_array = new Uint16Array(data);
 						console.log("finished!", segmentation_array.length);
@@ -122,7 +122,6 @@
 					function (bytes_processed) {
 						console.log(bytes_processed);
 					});
-
 				});
 			}
 
