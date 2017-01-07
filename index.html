@@ -7,6 +7,7 @@
 		</script>
 
 		<script src="./lib/jquery.min.js"></script>
+		<script src="./lib/lzma_worker.js"></script>
 		<script src="./lib/lzma.js"></script>
 		<script src="./lib/jquery.binaryrequest.js"></script>
 		<script src="./region-octree.js"></script>
@@ -87,7 +88,7 @@
 				delta = Math.round(delta);
 
 				SLICE[AXIS] += delta;
-				SLICE[AXIS] = clamp(SLICE[AXIS], 0, 127);
+				SLICE[AXIS] = clamp(SLICE[AXIS], 0, 256);
 
 				render();
 			});
@@ -197,12 +198,8 @@
 	<body>
 		<p>AXIS: <span id="axis"></span></p>
 		<p>SLICE: <span id="slice"></span></p>
-		CHANNEL<br>
-		<canvas id="channel" width="256" height="256"></canvas>
-		<br>
 		SEGMENTATION<br>
 		<canvas id="segmentation" width="256" height="256"></canvas>
-		<p>LOADING: <span id="loading"></span></p>
 
 		<div id="images"></div>
 	</body>
