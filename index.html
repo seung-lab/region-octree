@@ -119,11 +119,22 @@
 					mylzma.decompress(wow, function (data) {
 						var segmentation_array = new Uint16Array(data);
 						console.log("finished!", segmentation_array.length);
+						loadOctree(segmentation_array);
 					}, 
 					function (bytes_processed) {
 						console.log(bytes_processed);
 					});
 				});
+			}
+
+			function loadOctree (segmentation) {
+				for (var x = 0; x < 256; x++) {
+					for (var y = 0; y < 256; y++) {
+						for (var z = 0; z < 256; z++) {
+							tree.paintVoxel(x,y,z, segmentation[x + 256 * y + 256 * 256 * z]);
+						}
+					}
+				}
 			}
 
 			function saveStack () {
