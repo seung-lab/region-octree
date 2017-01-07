@@ -1,8 +1,14 @@
 <html>
 	<head>
 		<title>EXPERIMENTAL - Region Octree Render Test</title>
+	
+		<script>
+			window.exports = {};
+		</script>
+
 		<script src="./node_modules/jquery/dist/jquery.min.js"></script>
-		<script src="./node_modules/lzma/bin/lzma.js"></script>
+		<script src="./node_modules/lzma/src/lzma.js"></script>
+		<script src="./lib/jquery.binaryrequest.js"></script>
 		<script src="./region-octree.js"></script>
 
 		<style>
@@ -20,6 +26,9 @@
 		</style>
 
 		<script>
+			var Octree = exports.Octree;
+			var Vec3 = exports.Vec3;
+
 			var AXIS = 'z';
 			var SLICE = {
 				x: 1,
@@ -27,7 +36,7 @@
 				z: 1,
 			};
 
-			var _needsrender = true;
+			var _needsrender = false;
 
 			$(document).ready(function () {
 				var size = {
@@ -36,52 +45,39 @@
 					z: 256,
 				};
 
-				window.vol = new Volume({ 
-					task_id: 332,
-					channel: new DataCube({ 
-						bytes: 1,
-						size: size,
-					}), 
-					segmentation: new DataCube({ 
-						bytes: 2,
-						size: size,
-					}), 
-				});
+				loadLZMA();
 
-				var vol = window.vol;
+				window.tree = new Octree(Vec3.create(256, 256, 256), 4);
+				var tree = window.tree;
 
-				window.channelctx = $('#channel')[0].getContext('2d');
+				tree.root.label = 0xff0000ff;
+
+				// window.channelctx = $('#channel')[0].getContext('2d');
 				window.segctx = $('#segmentation')[0].getContext('2d');
 
-				var progress = setInterval(function () {
-					render();
-				}, 200);
+				// var progress = setInterval(function () {
+				// 	render();
+				// }, 200);
 
-				vol.load().always(function () {
-					clearInterval(progress);
-					render();
+				// vol.load().always(function () {
+				// 	clearInterval(progress);
+				// 	render();
 
-					// Cover gap between finish requests and 
-					// decoding images.
-					setTimeout(function () {
-						render();
-					}, 250);
-				});
+				// 	// Cover gap between finish requests and 
+				// 	// decoding images.
+				// 	setTimeout(function () {
+				// 		render();
+				// 	}, 250);
+				// });
+
+				render();
 
 
-				var clip_id = Math.round((Math.random() * 7) + 1); // 1, 2, 3, 4
-				var clip = new Audio("./audio/datacube" + clip_id + ".ogg");
-				clip.preload = true;
-
-				$(clip).one('canplaythrough', function () {
-					clip.play();
-				});
-			
 				$('#channel').on('click', function (e) {
 					var x = e.offsetX / $(this).innerWidth(), 
 						y = e.offsetY / $(this).innerHeight();
 
-					vol.selectSegment(AXIS, SLICE[AXIS], x, y);
+					// vol.selectSegment(AXIS, SLICE[AXIS], x, y);
 					render();
 				});
 			});
@@ -113,6 +109,22 @@
 				render();
 			});
 
+			function loadLZMA () {
+
+				var xhr = $.binaryGet("http://0.0.0.0:8000/test/256x256x256-segmentation.lzma");
+
+				xhr.promise.then((arraybuf) => {
+					var lzma = new LZMA("http://0.0.0.0:8000/node_modules/lzma/src/lzma_worker.js");
+					lzma.decompress(arraybuf, function (data) {
+						var segmentation_array = new Uint16Array(data);
+					}, 
+					function (bytes_processed) {
+						console.log(bytes_processed);
+					});
+
+				});
+			}
+
 			function saveStack () {
 				var canvas = document.createElement('canvas');
 				canvas.width = 256;
@@ -125,7 +137,7 @@
 					}
 
 					var cimg = new Image(256, 256);
-					//var simg = new Image(256, 256);
+					var simg = new Image(256, 256);
 					vol.segmentation.renderImageSlice(ctx, 'z', i);
 
 					canvas.toBlob(function (blob) {
@@ -142,14 +154,15 @@
 			}
 
 			function hardRender () {
-				vol.renderChannelSlice(window.channelctx, AXIS, SLICE[AXIS]);
-				vol.renderSegmentationSlice(window.segctx, AXIS, SLICE[AXIS]);
+				// vol.renderChannelSlice(window.channelctx, AXIS, SLICE[AXIS]);
+				var imgdata = window.tree.imageSlice(AXIS, SLICE[AXIS]);
+				window.segctx.putImageData(imgdata, 0, 0);
 
 				$('#axis').text(AXIS);
 				$('#slice').text(SLICE[AXIS]);
 
-				var progress = Math.round(vol.loadingProgress() * 100);
-				$('#loading').text(progress + '%');
+				// var progress = Math.round(vol.loadingProgress() * 100);
+				// $('#loading').text(progress + '%');
 
 
 				_needsrender = false;
