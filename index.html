@@ -111,10 +111,10 @@
 
 			function loadLZMA () {
 
-				var xhr = $.binaryGet("http://0.0.0.0:8000/test/256x256x256-segmentation.lzma");
+				var xhr = $.binaryGet("/test/256x256x256-segmentation.lzma");
 
 				xhr.promise.then((arraybuf) => {
-					var lzma = new LZMA("http://0.0.0.0:8000/node_modules/lzma/src/lzma_worker.js");
+					var lzma = new LZMA("/lib/lzma_worker.js");
 					lzma.decompress(arraybuf, function (data) {
 						var segmentation_array = new Uint16Array(data);
 					}, 
