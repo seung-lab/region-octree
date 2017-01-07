@@ -487,6 +487,10 @@ export class Octree {
 		return imgdata;
 	}
 
+	paintVoxel (x:number,y:number,z:number, label:number) : void {
+		this.root.paintVoxel(x,y,z,label);
+	}
+
 	slice<T> (axis: string, index: number) : T[] {
 		let root = this.root;
 

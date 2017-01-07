@@ -131,7 +131,7 @@
 				for (var x = 0; x < 256; x++) {
 					for (var y = 0; y < 256; y++) {
 						for (var z = 0; z < 256; z++) {
-							tree.paintVoxel(x,y,z, segmentation[x + 256 * y + 256 * 256 * z]);
+							tree.root.paintVoxel(x,y,z, segmentation[x + 256 * y + 256 * 256 * z]);
 						}
 					}
 				}
